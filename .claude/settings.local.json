@@ -16,7 +16,10 @@
       "Bash(cd \"C:\\\\Users\\\\EQUIPO\\\\Desktop\\\\Antigravity\\\\AgentePro\" && tasklist 2>&1 | grep -i node)",
       "Bash(ls -la *.txt 2>/dev/null || echo \"No txt files in root\")",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(rm railway.json && git add . && git commit -m \"Remove railway.json for auto-detection\" && git push)"
     ]
   }
 }
