@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "WebSearch",
+      "Bash(npx tsx:*)",
+      "Bash(gog:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(npm list:*)",
+      "Bash(git -C \"C:/Users/EQUIPO/Desktop/Antigravity/AgentePro/\" status 2>/dev/null || echo \"Not a git repo\")",
+      "Bash(cat > \"C:/Users/EQUIPO/Desktop/Antigravity/AgentePro/SUPABASE_OPTION.md\" << 'EOF'\n# Supabase vs Firestore para AgenteDafo\n\n## 🔥 FIREBASE \\(Actual\\)\n\n### Ventajas:\n- ✅ Ya configurado y funcionando\n- ✅ Gratis hasta cierto punto\n- ✅ Google Cloud infraestructura\n- ✅ Realtime Database + Firestore + Storage\n- ✅ Integrado con Google services\n\n### Desventajas:\n- ⚠️ Query complejos son difíciles\n- ⚠️ No tiene UI integrada visible\n- ⚠️ Precios pueden subir con mucho uso\n\n## 🟢 SUPABASE \\(Alternativa\\)\n\n### Ventajas:\n- ✅ PostgreSQL real \\(base de datos completa\\)\n- ✅ Dashboard web muy bonito y fácil de usar\n- ✅ REST API automática generada\n- ✅ Realtime subscriptions\n- ✅ Row Level Security\n- ✅ Gratis hasta 500MB\n- ✅ Open source\n- ✅ Más fácil de hacer queries complejas\n- ✅ Puedes ver los datos en una tabla como Excel\n\n### Desventajas:\n- ⚠️ Habría que migrar el código\n- ⚠️ Reconfigurar autenticación\n\n## 📊 COMPARATIVO\n\n| Característica | Firestore | Supabase |\n|----------------|-----------|----------|\n| Tipo | NoSQL | PostgreSQL \\(SQL\\) |\n| Gratis | 50K reads/day | 500MB DB |\n| Queries | Básicos | Complejos \\(SQL completo\\) |\n| Dashboard | Básico | Excelente |\n| API | Firebase SDK | REST API + Cliente |\n| Realtime | Sí \\(Firestore\\) | Sí \\(Realtime\\) |\n| Storage | Sí | Sí |\n| Auth | Sí | Sí |\n\n## 🎯 RECOMENDACIÓN\n\n### Mantén FIREBASE si:\n- ✅ Ya funciona bien\n- ✅ No necesitas queries complejos\n- ✅ Te gusta el ecosistema Google\n\n### Migra a SUPABASE si:\n- ✅ Quieres ver tus datos en una tabla web bonita\n- ✅ Necesitas SQL para análisis complejos\n- ✅ Quieres mejor dashboard\n- ✅ Prefieres PostgreSQL\n\n## 💡 MI OPINIÓN\n\nPara tu caso **mantén Firestore** porque:\n1. Ya funciona\n2. Tienes mucho código funcionando\n3. No vale la pena migrar todo\n\nPERO puedes agregar Supabase como **complemento**:\n- Firestore para datos en tiempo real del bot\n- Supabase para análisis, reportes y dashboards visuales\n\n## 🚀 USAR AMBOS \\(Híbrido\\)\n\n```typescript\n// Firestore para datos del bot \\(rápido, ya funciona\\)\nguardarNota\\(userId, titulo, contenido\\)\ncrearTarea\\(userId, tarea\\)\n\n// Supabase para análisis y dashboards\nguardarAnalisisProductividad\\(userId, datos\\)\ngenerarReporteMensual\\(userId, mes\\)\ncrearDashboardVisual\\(userId\\)\n```\nEOF\ncat \"C:/Users/EQUIPO/Desktop/Antigravity/AgentePro/SUPABASE_OPTION.md\")",
+      "Bash(cd \"C:\\\\Users\\\\EQUIPO\\\\Desktop\\\\Antigravity\\\\AgentePro\" && netstat -ano | findstr :8080 2>&1 || echo \"No process on 8080\")",
+      "Bash(cd \"C:\\\\Users\\\\EQUIPO\\\\Desktop\\\\Antigravity\\\\AgentePro\" && tasklist 2>&1 | grep -i node)",
+      "Bash(ls -la *.txt 2>/dev/null || echo \"No txt files in root\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

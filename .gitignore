@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno
+.env
+.env.local
+service-account.json
+
+# Base de datos
+*.db
+*.db-shm
+*.db-wal
+
+# Build
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporales
+*.tmp
+.cache/
+
+# Archivos con credenciales (nombre del archivo contiene API keys)
+*sk-or-v*.txt
+*gsk_A*.txt
+*sk_b*.txt
+api*.txt
+client_secret_*.json
