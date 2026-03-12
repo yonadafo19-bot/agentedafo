@@ -7,3 +7,4 @@ export * from './oauth.js';
 export * from './gmail.js';
 export * from './calendar.js';
 export * from './drive.js';
+export { readGoogleDoc, searchAndReadDoc } from './drive.js';

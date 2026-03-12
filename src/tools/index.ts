@@ -796,6 +796,46 @@ export const google_drive_upload: Tool = {
   },
 };
 
+export const google_drive_read_doc: Tool = {
+  name: 'google_drive_read_doc',
+  description: 'Lee el contenido completo de un Google Doc por su ID de archivo',
+  parameters: {
+    type: 'object',
+    properties: {
+      fileId: { type: 'string', description: 'ID del archivo de Google Doc' },
+    },
+    required: ['fileId'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const fileId = args.fileId as string;
+      return await googleWorkspace.readGoogleDoc(fileId);
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const google_drive_search_and_read_doc: Tool = {
+  name: 'google_drive_search_and_read_doc',
+  description: 'Busca un Google Doc por nombre y lee su contenido automáticamente. Útil para encontrar documentos como "rutina proyecto vitalidad 37"',
+  parameters: {
+    type: 'object',
+    properties: {
+      fileName: { type: 'string', description: 'Nombre del documento a buscar (ej: "rutina proyecto vitalidad 37")' },
+    },
+    required: ['fileName'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const fileName = args.fileName as string;
+      return await googleWorkspace.searchAndReadDoc(fileName);
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
 // ============================================================================
 // HERRAMIENTAS DE BÚSQUEDA WEB
 // ============================================================================
@@ -1468,6 +1508,8 @@ export const tools: Tool[] = [
   google_drive_recent,
   google_drive_create_folder,
   google_drive_upload,
+  google_drive_read_doc,
+  google_drive_search_and_read_doc,
 
   // Personal Notes & Tasks
   personal_save_note,

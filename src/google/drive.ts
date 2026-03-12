@@ -294,3 +294,82 @@ function formatDate(dateString: string): string {
     minute: '2-digit',
   });
 }
+
+/**
+ * Lee el contenido de un Google Doc
+ */
+export async function readGoogleDoc(fileId: string): Promise<string> {
+  try {
+    const auth = await createOAuth2Client();
+
+    // Primero obtener información del archivo para confirmar que es un doc
+    const fileResponse = await drive.files.get({
+      auth,
+      fileId,
+      fields: 'id,name,mimeType',
+    });
+
+    const file = fileResponse.data;
+    const isGoogleDoc = file.mimeType === 'application/vnd.google-apps.document';
+
+    if (!isGoogleDoc) {
+      throw new Error(`El archivo "${file.name}" no es un Google Doc. Tipo: ${file.mimeType}`);
+    }
+
+    // Exportar el documento a texto plano
+    const exportResponse = await drive.files.export(
+      {
+        auth,
+        fileId,
+        mimeType: 'text/plain',
+      },
+      { responseType: 'text' }
+    );
+
+    // El contenido viene como string
+    const content = exportResponse.data as string;
+
+    return `📄 **${file.name}**\n\n${content}`;
+  } catch (error) {
+    throw new Error(`Error leyendo Google Doc: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+  }
+}
+
+/**
+ * Busca y lee un documento de Google Drive por nombre
+ */
+export async function searchAndReadDoc(fileName: string): Promise<string> {
+  try {
+    const auth = await createOAuth2Client();
+
+    // Buscar el documento
+    const query = `name contains '${fileName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.document'`;
+    const response = await drive.files.list({
+      auth,
+      q: query,
+      pageSize: 5,
+      fields: 'files(id,name)',
+    });
+
+    const files = response.data.files || [];
+
+    if (files.length === 0) {
+      return `❌ No se encontró ningún documento llamado "${fileName}"`;
+    }
+
+    if (files.length > 1) {
+      let msg = `⚠️ Se encontraron ${files.length} documentos con ese nombre:\n\n`;
+      files.forEach((f, i) => {
+        msg += `${i + 1}. ${f.name} (ID: ${f.id})\n`;
+      });
+      msg += `\nLeyendo el primer resultado...`;
+      // Leer el primero
+      return await readGoogleDoc(files[0].id!);
+    }
+
+    // Leer el único resultado
+    return await readGoogleDoc(files[0].id!);
+  } catch (error) {
+    throw new Error(`Error buscando documento: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+  }
+}
