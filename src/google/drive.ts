@@ -172,9 +172,18 @@ export async function uploadFileBuffer(
       fileMetadata.parents = [parentFolderId];
     }
 
+    // Crear un stream desde el buffer usando Readable
+    const { Readable } = await import('stream');
+    const bufferStream = new Readable({
+      read() {
+        this.push(buffer);
+        this.push(null);
+      }
+    });
+
     const media = {
       mimeType,
-      body: buffer,
+      body: bufferStream,
     };
 
     const response = await drive.files.create({
@@ -217,9 +226,19 @@ export async function uploadFile(
       fileMetadata.parents = [parentFolderId];
     }
 
+    // Crear un stream desde el buffer
+    const buffer = Buffer.from(base64Content, 'base64');
+    const { Readable } = await import('stream');
+    const bufferStream = new Readable({
+      read() {
+        this.push(buffer);
+        this.push(null);
+      }
+    });
+
     const media = {
       mimeType,
-      body: Buffer.from(base64Content, 'base64'),
+      body: bufferStream,
     };
 
     const response = await drive.files.create({
