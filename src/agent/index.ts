@@ -413,17 +413,22 @@ ESTO ES CRÍTICO: Mantener el contexto de lo que acabamos de hablar.`;
     response: string;
     messages: Message[];
   }> {
-    // Obtener fecha y hora actual
+    // Obtener fecha y hora actual (Zona horaria: Chile/Concepción)
     const now = new Date();
     const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
     const diaSemana = dias[now.getDay()];
-    const fechaFormateada = now.toLocaleDateString('es-ES', {
+    const fechaFormateada = now.toLocaleDateString('es-CL', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      timeZone: 'America/Santiago'
     });
-    const hora = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    const hora = now.toLocaleTimeString('es-CL', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Santiago'
+    });
 
     // Preparar mensajes para el LLM con contexto temporal
     let messages: Message[] = [
