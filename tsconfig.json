@@ -18,7 +18,17 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["node"]
+    "types": ["node"],
+    // Path aliases para imports limpios
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["./*"],
+      "@/shared/*": ["shared/*"],
+      "@/core/*": ["core/*"],
+      "@/domain/*": ["domain/*"],
+      "@/infrastructure/*": ["infrastructure/*"],
+      "@/integrations/*": ["integrations/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

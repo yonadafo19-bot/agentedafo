@@ -871,6 +871,7 @@ export class TelegramBot {
   /**
    * Maneja documentos subidos por el usuario (PDF, DOCX, TXT, etc.)
    * Los sube a Google Drive y guarda metadatos en la BD local
+   * Preserva el formato original del archivo para máxima compatibilidad
    */
   private async handleDocumentMessage(ctx: Context): Promise<void> {
     const userId = ctx.from!.id;
@@ -886,9 +887,9 @@ export class TelegramBot {
     try {
       // Obtener información del archivo
       const file = await ctx.api.getFile(document.file_id);
-      const fileName = document.file_name || `documento_${Date.now()}`;
+      const originalFileName = document.file_name || `documento_${Date.now()}`;
       const fileSize = document.file_size || 0;
-      const mimeType = document.mime_type || 'application/octet-stream';
+      const telegramMimeType = document.mime_type || 'application/octet-stream';
 
       // Descargar el archivo
       const fileUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${file.file_path}`;
@@ -900,31 +901,109 @@ export class TelegramBot {
 
       const fileBuffer = Buffer.from(await response.arrayBuffer());
 
-      // Determinar el tipo MIME correcto para Google Drive
-      let driveMimeType = mimeType;
-      const fileNameLower = fileName.toLowerCase();
+      // MAPEAR TIPOS MIME PARA GOOGLE DRIVE
+      // Usar mime types específicos de Google para mejor compatibilidad
+      const extension = originalFileName.toLowerCase();
+      let driveMimeType = telegramMimeType;
 
-      if (fileNameLower.endsWith('.pdf')) {
+      // Documentos de texto
+      if (extension.endsWith('.pdf')) {
         driveMimeType = 'application/pdf';
-      } else if (fileNameLower.endsWith('.docx') || fileNameLower.endsWith('.doc')) {
+      } else if (extension.endsWith('.doc')) {
+        driveMimeType = 'application/msword';
+      } else if (extension.endsWith('.docx')) {
         driveMimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
-        driveMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      } else if (fileNameLower.endsWith('.txt')) {
-        driveMimeType = 'text/plain';
-      } else if (fileNameLower.endsWith('.odt')) {
+      } else if (extension.endsWith('.odt')) {
         driveMimeType = 'application/vnd.oasis.opendocument.text';
+      } else if (extension.endsWith('.rtf')) {
+        driveMimeType = 'application/rtf';
+      } else if (extension.endsWith('.txt')) {
+        driveMimeType = 'text/plain';
+      }
+      // Hojas de cálculo
+      else if (extension.endsWith('.xls')) {
+        driveMimeType = 'application/vnd.ms-excel';
+      } else if (extension.endsWith('.xlsx')) {
+        driveMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      } else if (extension.endsWith('.ods')) {
+        driveMimeType = 'application/vnd.oasis.opendocument.spreadsheet';
+      } else if (extension.endsWith('.csv')) {
+        driveMimeType = 'text/csv';
+      }
+      // Presentaciones
+      else if (extension.endsWith('.ppt')) {
+        driveMimeType = 'application/vnd.ms-powerpoint';
+      } else if (extension.endsWith('.pptx')) {
+        driveMimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      } else if (extension.endsWith('.odp')) {
+        driveMimeType = 'application/vnd.oasis.opendocument.presentation';
+      }
+      // Imágenes
+      else if (extension.endsWith('.jpg') || extension.endsWith('.jpeg')) {
+        driveMimeType = 'image/jpeg';
+      } else if (extension.endsWith('.png')) {
+        driveMimeType = 'image/png';
+      } else if (extension.endsWith('.gif')) {
+        driveMimeType = 'image/gif';
+      } else if (extension.endsWith('.webp')) {
+        driveMimeType = 'image/webp';
+      } else if (extension.endsWith('.bmp')) {
+        driveMimeType = 'image/bmp';
+      } else if (extension.endsWith('.svg')) {
+        driveMimeType = 'image/svg+xml';
+      }
+      // Videos
+      else if (extension.endsWith('.mp4')) {
+        driveMimeType = 'video/mp4';
+      } else if (extension.endsWith('.mov')) {
+        driveMimeType = 'video/quicktime';
+      } else if (extension.endsWith('.avi')) {
+        driveMimeType = 'video/x-msvideo';
+      } else if (extension.endsWith('.mkv')) {
+        driveMimeType = 'video/x-matroska';
+      } else if (extension.endsWith('.webm')) {
+        driveMimeType = 'video/webm';
+      }
+      // Audio
+      else if (extension.endsWith('.mp3')) {
+        driveMimeType = 'audio/mpeg';
+      } else if (extension.endsWith('.wav')) {
+        driveMimeType = 'audio/wav';
+      } else if (extension.endsWith('.ogg')) {
+        driveMimeType = 'audio/ogg';
+      } else if (extension.endsWith('.m4a')) {
+        driveMimeType = 'audio/mp4';
+      }
+      // Archivos comprimidos
+      else if (extension.endsWith('.zip')) {
+        driveMimeType = 'application/zip';
+      } else if (extension.endsWith('.rar')) {
+        driveMimeType = 'application/vnd.rar';
+      } else if (extension.endsWith('.7z')) {
+        driveMimeType = 'application/x-7z-compressed';
+      } else if (extension.endsWith('.tar')) {
+        driveMimeType = 'application/x-tar';
+      } else if (extension.endsWith('.gz')) {
+        driveMimeType = 'application/gzip';
       }
 
-      // Subir a Google Drive
+      // Crear nombre de archivo seguro para Drive (preservar extensión original)
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const originalExt = originalFileName.includes('.') ? originalFileName.split('.').pop() : '';
+      const baseName = originalFileName.replace(/\.[^/.]+$/, ''); // Sin extensión
+      const driveFileName = `${baseName}_${timestamp}.${originalExt}`;
+
+      // Subir a Google Drive con el tipo MIME correcto
       const { uploadFileBuffer } = await import('../google/drive.js');
-      const driveResult = await uploadFileBuffer(fileName, driveMimeType, fileBuffer);
+      const driveResult = await uploadFileBuffer(driveFileName, driveMimeType, fileBuffer);
 
       // Guardar metadatos en la BD local (usando personal notes)
       const metadata = {
-        fileName,
+        originalFileName,
+        driveFileName,
         fileSize,
         mimeType: driveMimeType,
+        extension: originalExt,
         uploadedAt: new Date().toISOString(),
         source: 'telegram',
         userId: userId.toString(),
@@ -934,21 +1013,25 @@ export class TelegramBot {
       const { saveNote } = await import('../personal/notes.js');
       await saveNote(
         userId.toString(),
-        `📄 Documento: ${fileName}`,
+        `📄 Documento: ${originalFileName}`,
         `Documento subido desde Telegram\n\n${driveResult}\n\nMetadatos: ${JSON.stringify(metadata, null, 2)}`,
         'documentos_telegram'
       );
 
       // Guardar en ChatDafo
-      await this.saveToChatDafo(userId, username, 'user', `📄 Documento subido: ${fileName}`);
+      await this.saveToChatDafo(userId, username, 'user', `📄 Documento subido: ${originalFileName}`);
       await this.saveToChatDafo(userId, username, 'assistant', driveResult);
 
       // Responder al usuario
-      const sizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+      const sizeMB = fileSize > 1024 * 1024
+        ? (fileSize / (1024 * 1024)).toFixed(2) + ' MB'
+        : (fileSize / 1024).toFixed(2) + ' KB';
+
       await ctx.reply(
         `✅ *Documento subido a Google Drive*\n\n` +
-        `📄 **${fileName}**\n` +
-        `📏 Tamaño: ${sizeMB} MB\n` +
+        `📄 **${originalFileName}**\n` +
+        `📏 Tamaño: ${sizeMB}\n` +
+        `📋 Formato: ${(originalExt || 'Desconocido').toUpperCase()}\n` +
         `📁 Guardado en: Google Drive\n\n` +
         `${driveResult}`,
         { parse_mode: 'Markdown' }
@@ -964,10 +1047,11 @@ export class TelegramBot {
 
   /**
    * Maneja videos subidos por el usuario
-   * Los sube a Google Drive y guarda metadatos
+   * Los sube a Google Drive con el formato correcto para máxima compatibilidad
    */
   private async handleVideoMessage(ctx: Context): Promise<void> {
     const userId = ctx.from!.id;
+    const username = ctx.from!.username || ctx.from!.first_name || undefined;
     const video = ctx.message?.video;
 
     if (!video) {
@@ -979,8 +1063,30 @@ export class TelegramBot {
     try {
       // Obtener información del archivo
       const file = await ctx.api.getFile(video.file_id);
-      const fileName = `video_${Date.now()}.mp4`;
+
+      // Detectar formato real del video desde el file_path
+      const filePath = file.file_path || '';
+      const fileExt = filePath.split('.').pop()?.toLowerCase() || 'mp4';
+
+      // Nombre de archivo con timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const fileName = `video_${timestamp}.${fileExt}`;
       const fileSize = video.file_size || 0;
+
+      // Mapear MIME type según extensión para máxima compatibilidad móvil
+      const mimeTypes: Record<string, string> = {
+        'mp4': 'video/mp4',
+        'mov': 'video/quicktime',
+        'avi': 'video/x-msvideo',
+        'mkv': 'video/x-matroska',
+        'webm': 'video/webm',
+        'flv': 'video/x-flv',
+        'wmv': 'video/x-ms-wmv',
+        'mpeg': 'video/mpeg',
+        'mpg': 'video/mpeg',
+        '3gp': 'video/3gpp',
+      };
+      const mimeType = mimeTypes[fileExt] || 'video/mp4';
 
       // Descargar el archivo
       const fileUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${file.file_path}`;
@@ -992,24 +1098,31 @@ export class TelegramBot {
 
       const fileBuffer = Buffer.from(await response.arrayBuffer());
 
-      // Subir a Google Drive
+      // Subir a Google Drive con el formato correcto
       const { uploadFileBuffer } = await import('../google/drive.js');
-      const driveResult = await uploadFileBuffer(fileName, 'video/mp4', fileBuffer);
+      const driveResult = await uploadFileBuffer(fileName, mimeType, fileBuffer);
 
       // Guardar metadatos
       const { saveNote } = await import('../personal/notes.js');
-      const sizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+      const sizeMB = fileSize > 1024 * 1024
+        ? (fileSize / (1024 * 1024)).toFixed(2) + ' MB'
+        : (fileSize / 1024).toFixed(2) + ' KB';
+
       await saveNote(
         userId.toString(),
         `🎥 Video: ${fileName}`,
-        `Video subido desde Telegram (${sizeMB} MB)\n\n${driveResult}`,
+        `Video subido desde Telegram\n\n${driveResult}`,
         'videos_telegram'
       );
 
+      // Guardar en ChatDafo
+      await this.saveToChatDafo(userId, username, 'user', `🎥 Video subido: ${fileName}`);
+      await this.saveToChatDafo(userId, username, 'assistant', driveResult);
+
       await ctx.reply(
         `✅ *Video subido a Google Drive*\n\n` +
-        `🎥 ${fileName}\n` +
-        `📏 Tamaño: ${sizeMB} MB\n\n` +
+        `🎥 Formato: ${fileExt.toUpperCase()}\n` +
+        `📏 Tamaño: ${sizeMB}\n\n` +
         `${driveResult}`,
         { parse_mode: 'Markdown' }
       );
@@ -1024,6 +1137,7 @@ export class TelegramBot {
 
   /**
    * Mejora el handler de fotos para también subirlas a Drive
+   * Detecta el formato correcto de la imagen para compatibilidad móvil
    */
   private async handlePhotoMessage(ctx: Context): Promise<void> {
     const userId = ctx.from!.id;
@@ -1042,8 +1156,13 @@ export class TelegramBot {
       const largestPhoto = photo[photo.length - 1];
       const file = await ctx.api.getFile(largestPhoto.file_id);
 
-      // Crear ruta temporal para el archivo
-      const tempPath = join(tmpdir(), `photo_${Date.now()}.jpg`);
+      // Detectar extensión del archivo de Telegram
+      const fileExt = file.file_path?.split('.').pop()?.toLowerCase() || 'jpg';
+      const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+      const finalExt = validExtensions.includes(fileExt) ? fileExt : 'jpg';
+
+      // Crear ruta temporal para el archivo con la extensión correcta
+      const tempPath = join(tmpdir(), `photo_${Date.now()}.${finalExt}`);
 
       try {
         // Descargar el archivo
@@ -1057,13 +1176,24 @@ export class TelegramBot {
         const imageBuffer = Buffer.from(await response.arrayBuffer());
         await writeFile(tempPath, imageBuffer);
 
-        // SUBIR A GOOGLE DRIVE
+        // Detectar MIME type correcto según la extensión
+        const mimeTypes: Record<string, string> = {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'webp': 'image/webp',
+          'gif': 'image/gif'
+        };
+        const mimeType = mimeTypes[finalExt] || 'image/jpeg';
+
+        // SUBIR A GOOGLE DRIVE con formato correcto
         try {
           const { uploadFileBuffer } = await import('../google/drive.js');
-          const fileName = `foto_${Date.now()}.jpg`;
-          const driveResult = await uploadFileBuffer(fileName, 'image/jpeg', imageBuffer);
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          const fileName = `foto_${timestamp}.${finalExt}`;
+          const driveResult = await uploadFileBuffer(fileName, mimeType, imageBuffer);
 
-          await ctx.reply(`📸 *Foto subida a Google Drive*\n\n${driveResult}`, { parse_mode: 'Markdown' });
+          await ctx.reply(`📸 *Foto subida a Google Drive*\n\n📄 Formato: ${finalExt.toUpperCase()}\n\n${driveResult}`, { parse_mode: 'Markdown' });
         } catch (driveError) {
           const errorMsg = driveError instanceof Error ? driveError.message : 'Error desconocido';
           console.error('❌ Error subiendo a Drive:', driveError);
@@ -1075,9 +1205,9 @@ export class TelegramBot {
           );
         }
 
-        // Convertir a base64 para analizar
+        // Convertir a base64 para analizar (usar JPEG para análisis)
         const base64Image = imageBuffer.toString('base64');
-        const mimeType = 'image/jpeg';
+        const analysisMimeType = 'image/jpeg';
 
         // Analizar la imagen con GPT-4 Vision
         const { getImageGenerator } = await import('../image/openai.js');
@@ -1086,7 +1216,7 @@ export class TelegramBot {
         // Primero obtener una descripción general
         const description = await imageGen.describeImageFromBase64(
           base64Image,
-          mimeType,
+          analysisMimeType,
           'Describe esta imagen en detalle. ¿Qué ves? Si hay texto, extráelo también.'
         );
 
