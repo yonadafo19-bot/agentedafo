@@ -15,11 +15,14 @@ import { InputFile } from 'grammy';
 import * as personalNotes from '../personal/notes.js';
 import { getTodayEvents, getEvents } from '../google/calendar.js';
 import { getRecentEmails } from '../google/gmail.js';
+import type { AudioPreferences } from '../types/index.js';
 
 export class TelegramBot {
   private bot: Bot;
   private memory: Memory;
   private agent: Agent;
+  // Preferencias de audio por usuario (almacenadas en memoria)
+  private userAudioPreferences: Map<number, AudioPreferences>;
 
   constructor() {
     // Inicializar proveedores de LLM
@@ -34,7 +37,56 @@ export class TelegramBot {
     // Inicializar agente
     this.agent = new Agent();
 
+    // Inicializar preferencias de usuario
+    this.userAudioPreferences = new Map();
+
     this.setupHandlers();
+  }
+
+  // Obtiene las preferencias de audio de un usuario
+  private getAudioPreferences(userId: number): AudioPreferences {
+    if (!this.userAudioPreferences.has(userId)) {
+      this.userAudioPreferences.set(userId, {
+        alwaysAudio: false,
+        audioForShort: true,  // Por defecto, audio para respuestas cortas
+        shortResponseLimit: 300,  // 300 caracteres o menos = corto
+      });
+    }
+    return this.userAudioPreferences.get(userId)!;
+  }
+
+  // Actualiza las preferencias de audio de un usuario
+  private setAudioPreferences(userId: number, preferences: Partial<AudioPreferences>): void {
+    const current = this.getAudioPreferences(userId);
+    this.userAudioPreferences.set(userId, { ...current, ...preferences });
+  }
+
+  // Determina si se debe enviar audio para una respuesta
+  private shouldSendAudio(userId: number, responseText: string): boolean {
+    const prefs = this.getAudioPreferences(userId);
+
+    // Si siempre audio, activar
+    if (prefs.alwaysAudio) return true;
+
+    // Si audio para cortas y la respuesta es corta
+    if (prefs.audioForShort && responseText.length <= prefs.shortResponseLimit) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Limpia el texto de marcas markdown para evitar problemas con TTS
+  private cleanTextForTTS(text: string): string {
+    return text
+      .replace(/\*\*/g, '')  // Negrita
+      .replace(/\*/g, '')    // Cursiva
+      .replace(/__/g, '')    // Subrayado
+      .replace(/~~/g, '')    // Tachado
+      .replace(/`{1,3}/g, '') // Código
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // Enlaces [texto](url) -> texto
+      .replace(/\n{3,}/g, '\n\n')  // Máximo 2 saltos de línea seguidos
+      .trim();
   }
 
   async initialize(): Promise<void> {
@@ -55,24 +107,29 @@ export class TelegramBot {
     // Comando /start
     this.bot.command('start', (ctx) => {
       ctx.reply(
-        '¡Hola! Soy AgenteDafo, tu asistente de IA personal.\n\n' +
-        'Comandos disponibles:\n' +
+        '¡Hola! Soy **AgenteDafo**, tu super asistente diario personal. 🚀\n\n' +
+        '📱 *Comandos disponibles:*\n' +
         '/start - Iniciar el bot\n' +
         '/help - Mostrar ayuda\n' +
-        '/clear - Limpiar el historial de conversación\n' +
+        '/clear - Limpiar el historial\n' +
         '/info - Información del bot\n' +
+        '/audio_on - 🎤 Siempre responder con audio\n' +
+        '/audio_off - 📝 Responder solo con texto\n' +
+        '/audio_auto - 🤖 Audio automático en respuestas cortas\n' +
         '/tarea <texto> - Crear tarea rápida\n' +
         '/rutina - Ver rutina de ejercicios\n' +
         '/resumen [hoy|semana] - Resumen rápido\n\n' +
-        '✨ *Puedes hablar conmigo por:*\n' +
-        '• 📝 Mensajes de texto\n' +
-        '• 🎤 Notas de voz (¡te respondo con audio!)\n\n' +
-        '🔥 *Mis capacidades:*\n' +
-        '• Búsquedas en internet\n' +
-        '• Transcripción de audio\n' +
-        '• Respuestas de voz naturales\n' +
-        '• Guardar datos en Firebase\n\n' +
-        '¡Envíame un audio para comenzar!',
+        '✨ *¿Cómo puedo ayudarte?*\n' +
+        '• 📝 Envíame mensajes de texto\n' +
+        '• 🎤 Envíame notas de voz (¡te respondo con audio!)\n' +
+        '• 📸 Envíame imágenes para analizar\n\n' +
+        '🧠 *Mis superpoderes:*\n' +
+        '• Ideas y consejos personalizados\n' +
+        '• Recordatorios inteligentes\n' +
+        '• Búsqueda en tiempo real\n' +
+        '• Gestión de tareas y rutinas\n' +
+        '• Integración con Google (Drive, Calendar, Gmail)\n\n' +
+        '💬 *Tip*: Envíame "¿qué puedo hacer hoy?" para comenzar.',
         { parse_mode: 'Markdown' }
       );
     });
@@ -80,25 +137,23 @@ export class TelegramBot {
     // Comando /help
     this.bot.command('help', (ctx) => {
       ctx.reply(
-        '📖 *Ayuda de AgenteDafo*\n\n' +
-        '📋 *Comandos rápidos (sin LLM):*\n' +
+        '📖 *Ayuda de AgenteDafo - Tu Super Asistente*\n\n' +
+        '🎯 *¿Qué puedo hacer por ti?*\n' +
+        '• 💡 Darte ideas creativas y soluciones\n' +
+        '• 📅 Organizar tu día y recordatorios\n' +
+        '• 🏋️ Gestionar tus rutinas de ejercicio\n' +
+        '• 🔍 Buscar información en internet\n' +
+        '• 📧 Revisar tus emails y eventos\n' +
+        '• 📄 Crear documentos en Drive\n\n' +
+        '🎙️ *Modos de respuesta:*\n' +
+        '• /audio_on - 🎤 Siempre te respondo con voz\n' +
+        '• /audio_off - 📝 Solo te respondo con texto\n' +
+        '• /audio_auto - 🤖 Audio automático para respuestas cortas\n\n' +
+        '📋 *Comandos rápidos:*\n' +
         '• /tarea <texto> - Crea tarea al instante\n' +
         '• /rutina - Muestra tu rutina guardada\n' +
         '• /resumen [hoy|semana] - Resumen rápido\n\n' +
-        '🎙️ *Comunicación:*\n' +
-        '• 📝 Texto - Responde por escrito\n' +
-        '• 🎤 Voz - ¡Te respondo con audio natural!\n\n' +
-        '🧠 *Mis capacidades:*\n' +
-        '• Responder preguntas\n' +
-        '• Transcribir audios (Whisper)\n' +
-        '• Respuestas de voz naturales (ElevenLabs)\n' +
-        '• Búsqueda en tiempo real 🔍\n' +
-        '• Guardar datos en Firebase 🔥\n\n' +
-        '📋 *Otros comandos:*\n' +
-        '/start - Iniciar el bot\n' +
-        '/clear - Limpiar historial\n' +
-        '/info - Info del sistema\n\n' +
-        '💬 *Tip*: Envíame un audio y te responderé con mi voz.',
+        '💬 *Tip*: Prueba decirme "ayúdame a organizar mi día" o "dame ideas para..."',
         { parse_mode: 'Markdown' }
       );
     });
@@ -112,12 +167,59 @@ export class TelegramBot {
 
     // Comando /info
     this.bot.command('info', (ctx) => {
+      const userId = ctx.from!.id;
+      const prefs = this.getAudioPreferences(userId);
+
+      let audioStatus = '🤖 Automático (respuestas cortas)';
+      if (prefs.alwaysAudio) audioStatus = '🎤 Siempre activo';
+      else if (!prefs.audioForShort) audioStatus = '📝 Desactivado';
+
       ctx.reply(
-        'ℹ️ *AgenteDafo v1.0.0*\n\n' +
-        `Usuario: ${ctx.from!.username || ctx.from!.first_name || 'Desconocido'}\n` +
-        `User ID: ${ctx.from!.id}\n` +
-        'Estado: ✅ Activo\n' +
-        'Proveedor LLM: Groq (con fallback OpenRouter)',
+        'ℹ️ *AgenteDafo v2.0 - Super Asistente*\n\n' +
+        `👤 Usuario: ${ctx.from!.username || ctx.from!.first_name || 'Desconocido'}\n` +
+        `🆔 User ID: ${ctx.from!.id}\n` +
+        `🎙️ Modo audio: ${audioStatus}\n` +
+        `📏 Límite corto: ${prefs.shortResponseLimit} caracteres\n` +
+        '✅ Estado: Activo\n' +
+        '🧠 LLM: Groq (con fallback OpenRouter)\n' +
+        '🔥 Firebase: ' + (isFirebaseAvailable() ? '✅ Conectado' : '❌ No configurado'),
+        { parse_mode: 'Markdown' }
+      );
+    });
+
+    // Comando /audio_on - Activar respuestas de audio siempre
+    this.bot.command('audio_on', (ctx) => {
+      const userId = ctx.from!.id;
+      this.setAudioPreferences(userId, { alwaysAudio: true, audioForShort: true });
+      ctx.reply(
+        '🎙️ *Modo audio activado*\n\n' +
+        '✅ Ahora te responderé con audio en **TODAS** mis respuestas.\n\n' +
+        '💡 Usa /audio_off para desactivar o /audio_auto para modo inteligente.',
+        { parse_mode: 'Markdown' }
+      );
+    });
+
+    // Comando /audio_off - Desactivar respuestas de audio
+    this.bot.command('audio_off', (ctx) => {
+      const userId = ctx.from!.id;
+      this.setAudioPreferences(userId, { alwaysAudio: false, audioForShort: false });
+      ctx.reply(
+        '📝 *Modo audio desactivado*\n\n' +
+        '❌ Solo te responderé con texto.\n\n' +
+        '💡 Usa /audio_on para activar o /audio_auto para modo inteligente.',
+        { parse_mode: 'Markdown' }
+      );
+    });
+
+    // Comando /audio_auto - Modo automático (audio para respuestas cortas)
+    this.bot.command('audio_auto', (ctx) => {
+      const userId = ctx.from!.id;
+      this.setAudioPreferences(userId, { alwaysAudio: false, audioForShort: true });
+      ctx.reply(
+        '🤖 *Modo audio automático*\n\n' +
+        '✅ Te responderé con audio en respuestas **cortas** (menos de ' +
+        `${this.getAudioPreferences(userId).shortResponseLimit} caracteres).\n\n` +
+        '💡 Usa /audio_on para siempre o /audio_off para desactivar.',
         { parse_mode: 'Markdown' }
       );
     });
@@ -403,8 +505,17 @@ export class TelegramBot {
           }
         }
       } else {
-        // Enviar respuesta normal
-        await ctx.reply(result.response);
+        // Determinar si enviar audio basado en preferencias del usuario
+        const shouldSendAudio = this.shouldSendAudio(userId, result.response);
+
+        if (shouldSendAudio) {
+          // Enviar texto Y audio
+          await ctx.reply(result.response);
+          await this.sendAudioResponse(ctx, userId, result.response);
+        } else {
+          // Enviar solo texto
+          await ctx.reply(result.response);
+        }
       }
 
     } catch (error) {
@@ -412,6 +523,43 @@ export class TelegramBot {
       await ctx.reply(
         '❌ Ocurrió un error al procesar tu mensaje. Por favor, inténtalo de nuevo.'
       );
+    }
+  }
+
+  // Envía respuesta de audio usando ElevenLabs
+  private async sendAudioResponse(ctx: Context, userId: number, text: string): Promise<void> {
+    try {
+      await ctx.api.sendChatAction(userId, 'record_voice');
+
+      const responseAudioPath = join(tmpdir(), `response_${Date.now()}.mp3`);
+
+      // Limpiar texto para TTS
+      const cleanText = this.cleanTextForTTS(text);
+
+      // Generar audio con ElevenLabs
+      await textToSpeech(cleanText, responseAudioPath, {
+        apiKey: config.elevenlabs.apiKey,
+        voiceId: config.elevenlabs.voiceId,
+        model: config.elevenlabs.model,
+      });
+
+      // Crear un stream del archivo
+      const audioStream = createReadStream(responseAudioPath);
+
+      // Enviar el audio como nota de voz usando InputFile
+      await ctx.replyWithVoice(new InputFile(audioStream, 'response.mp3'));
+
+    } catch (error) {
+      // Si falla la generación de audio, loggear pero no fallar el flujo
+      console.warn('⚠️  Error generando audio con ElevenLabs:', error);
+    } finally {
+      // La limpieza del archivo temporal se hará después
+      try {
+        const responseAudioPath = join(tmpdir(), `response_${Date.now()}.mp3`);
+        await unlink(responseAudioPath);
+      } catch {
+        // Ignorar errores al eliminar
+      }
     }
   }
 

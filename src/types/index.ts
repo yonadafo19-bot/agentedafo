@@ -91,3 +91,16 @@ export interface ConversationContext {
   startedAt: Date;
   lastActivity: Date;
 }
+
+// Preferencias del usuario para respuestas de audio
+export interface AudioPreferences {
+  alwaysAudio: boolean;        // Si true, siempre enviar audio
+  audioForShort: boolean;      // Si true, enviar audio para respuestas cortas
+  shortResponseLimit: number;  // Límite de caracteres para considerar "corta"
+}
+
+// Preferencias del usuario
+export interface UserPreferences {
+  audio: AudioPreferences;
+  personalityMode: 'friendly' | 'professional' | 'casual' | 'motivational';
+}
