@@ -4,7 +4,6 @@
  */
 
 import * as fs from 'fs';
-import * as https from 'https';
 
 interface ElevenLabsConfig {
   apiKey: string;
@@ -29,9 +28,17 @@ export async function textToSpeech(
   // Limpiar el texto para hacerlo más natural
   const cleanedText = cleanTextForSpeech(text);
 
+  console.log(`🎤 ElevenLabs: Generando audio para texto de ${cleanedText.length} caracteres...`);
+  console.log(`🎤 Usando voz: ${voiceId}, modelo: ${model}`);
+
   try {
-    const audioBuffer = await new Promise<Buffer>((resolve, reject) => {
-      const postData = JSON.stringify({
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': apiKey,
+      },
+      body: JSON.stringify({
         text: cleanedText,
         model_id: model,
         voice_settings: {
@@ -39,48 +46,33 @@ export async function textToSpeech(
           similarity_boost: 0.75,
           use_speaker_boost: true,
         },
-      });
-
-      const options = {
-        hostname: 'api.elevenlabs.io',
-        path: `/v1/text-to-speech/${voiceId}`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData),
-          'xi-api-key': apiKey,
-        },
-      };
-
-      const req = https.request(options, (res) => {
-        const chunks: Buffer[] = [];
-
-        res.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
-
-        res.on('end', () => {
-          const buffer = Buffer.concat(chunks);
-
-          if (res.statusCode === 200) {
-            resolve(buffer);
-          } else {
-            const errorText = buffer.toString('utf-8');
-            reject(new Error(`Error en ElevenLabs: ${res.statusCode} - ${errorText}`));
-          }
-        });
-      });
-
-      req.on('error', (error) => {
-        reject(error);
-      });
-
-      req.write(postData);
-      req.end();
+      }),
     });
+
+    console.log(`🎤 ElevenLabs response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ ElevenLabs error (${response.status}): ${errorText}`);
+
+      if (response.status === 401) {
+        throw new Error('API key de ElevenLabs inválida o expirada. Verifica tu ELEVENLABS_API_KEY');
+      }
+      if (response.status === 404) {
+        throw new Error(`Voz no encontrada: ${voiceId}. La voz puede haber sido eliminada o cambiada`);
+      }
+      if (response.status === 429) {
+        throw new Error('Límite de cuota de ElevenLabs excedido. Verifica tu cuenta');
+      }
+      throw new Error(`Error en ElevenLabs: ${response.status} - ${errorText}`);
+    }
+
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
 
     // Guardar el archivo
     fs.writeFileSync(outputPath, audioBuffer);
+
+    console.log(`✅ Audio generado correctamente (${audioBuffer.length} bytes)`);
 
     return audioBuffer;
   } catch (error) {
@@ -127,39 +119,56 @@ function cleanTextForSpeech(text: string): string {
  * Obtiene información de las voces disponibles
  */
 export async function getAvailableVoices(apiKey: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.elevenlabs.io',
-      path: '/v1/voices',
+  try {
+    const response = await fetch('https://api.elevenlabs.io/v1/voices', {
       method: 'GET',
       headers: {
         'xi-api-key': apiKey,
       },
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          try {
-            resolve(JSON.parse(data));
-          } catch {
-            reject(new Error('Error al parsear respuesta'));
-          }
-        } else {
-          reject(new Error(`Error ${res.statusCode}: ${data}`));
-        }
-      });
     });
 
-    req.on('error', reject);
-    req.end();
-  });
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${await response.text()}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Error desconocido al obtener voces');
+  }
+}
+
+/**
+ * Verifica si la API key es válida
+ */
+export async function verifyApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const response = await fetch('https://api.elevenlabs.io/v1/user', {
+      method: 'GET',
+      headers: {
+        'xi-api-key': apiKey,
+      },
+    });
+
+    if (response.ok) {
+      return {
+        valid: true,
+      };
+    } else {
+      const errorText = await response.text();
+      return {
+        valid: false,
+        error: `Error ${response.status}: ${errorText}`,
+      };
+    }
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Error desconocido',
+    };
+  }
 }
 
 /**

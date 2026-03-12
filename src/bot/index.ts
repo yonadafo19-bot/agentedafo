@@ -6,7 +6,7 @@ import { Agent } from '../agent/index.js';
 import { initializeProviders } from '../llm/index.js';
 import { isFirebaseAvailable, getFirestore } from '../config/firebase.js';
 import { transcribeAudio } from '../audio/whisper.js';
-import { textToSpeech } from '../audio/elevenlabs.js';
+import { textToSpeech, verifyApiKey } from '../audio/elevenlabs.js';
 import { writeFile, unlink } from 'fs/promises';
 import { createReadStream } from 'fs';
 import { join } from 'path';
@@ -117,6 +117,9 @@ export class TelegramBot {
         '/audio_off - 📝 Responder solo con texto\n' +
         '/audio_auto - 🤖 Audio automático en respuestas cortas\n' +
         '/audio_test - 🔊 Probar el sistema de audio\n' +
+        '/check_eleven - 🔍 Verificar API key de ElevenLabs\n' +
+        '/mis_documentos - 📁 Ver documentos subidos\n' +
+        '/mis_videos - 🎥 Ver videos subidos\n' +
         '/tarea <texto> - Crear tarea rápida\n' +
         '/rutina - Ver rutina de ejercicios\n' +
         '/resumen [hoy|semana] - Resumen rápido\n\n' +
@@ -234,6 +237,113 @@ export class TelegramBot {
         await this.sendAudioResponse(ctx, userId, 'Hola, esto es una prueba del sistema de audio de AgenteDafo. Si escuchas este mensaje, todo funciona correctamente.');
       } catch (error) {
         await ctx.reply('❌ Error en la prueba de audio: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+      }
+    });
+
+    // Comando /check_eleven - Verificar API key de ElevenLabs
+    this.bot.command('check_eleven', async (ctx) => {
+      await ctx.reply('🔍 Verificando API key de ElevenLabs...');
+
+      const apiKey = config.elevenlabs.apiKey;
+
+      if (!apiKey) {
+        await ctx.reply(
+          '❌ *ELEVENLABS_API_KEY no configurada*\n\n' +
+          'Agrega esta variable a tu archivo .env:\n' +
+          '`ELEVENLABS_API_KEY=tu_key_aqui`\n\n' +
+          'Obtén tu key en: https://elevenlabs.io/app/settings/api-keys',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      // Mostrar primeros caracteres de la key (ocultando el resto)
+      const maskedKey = apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4);
+      await ctx.reply(`🔑 Key configurada: ${maskedKey}`);
+
+      // Verificar la key con ElevenLabs
+      const result = await verifyApiKey(apiKey);
+
+      if (result.valid) {
+        await ctx.reply(
+          '✅ *API Key válida*\n\n' +
+          `🎤 Voz configurada: ${config.elevenlabs.voiceId}\n` +
+          `📢 Modelo: ${config.elevenlabs.model}\n\n` +
+          'ElevenLabs está funcionando correctamente.',
+          { parse_mode: 'Markdown' }
+        );
+      } else {
+        await ctx.reply(
+          '❌ *Error con la API Key*\n\n' +
+          `🔍 Detalle: ${result.error}\n\n` +
+          'Soluciones posibles:\n' +
+          '• La key puede estar expirada\n' +
+          '• La key puede ser incorrecta\n' +
+          '• Puede haber un problema con tu cuenta de ElevenLabs\n\n' +
+          'Verifica en: https://elevenlabs.io/app/settings/api-keys',
+          { parse_mode: 'Markdown' }
+        );
+      }
+    });
+
+    // Comando /mis_documentos - Lista documentos subidos
+    this.bot.command('mis_documentos', async (ctx) => {
+      const userId = ctx.from!.id;
+
+      try {
+        const { searchNotes } = await import('../personal/notes.js');
+        const documentos = await searchNotes(userId.toString(), 'documentos_telegram');
+
+        // Contar cuántos hay
+        const lineas = documentos.split('\n');
+        const count = lineas.filter(l => l.includes('📄 Documento:')).length;
+
+        if (count === 0) {
+          await ctx.reply(
+            '📁 *Mis Documentos*\n\n' +
+            'No tienes documentos guardados.\n\n' +
+            '💡 Envíame un documento (PDF, DOCX, TXT, etc.) y lo guardaré automáticamente en Google Drive.',
+            { parse_mode: 'Markdown' }
+          );
+        } else {
+          await ctx.reply(
+            `📁 *Mis Documentos* (${count} archivos)\n\n${documentos}\n\n` +
+            '💡 Los documentos están guardados en Google Drive.',
+            { parse_mode: 'Markdown' }
+          );
+        }
+      } catch (error) {
+        await ctx.reply('❌ Error al listar documentos: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+      }
+    });
+
+    // Comando /mis_videos - Lista videos subidos
+    this.bot.command('mis_videos', async (ctx) => {
+      const userId = ctx.from!.id;
+
+      try {
+        const { searchNotes } = await import('../personal/notes.js');
+        const videos = await searchNotes(userId.toString(), 'videos_telegram');
+
+        const lineas = videos.split('\n');
+        const count = lineas.filter(l => l.includes('🎥 Video:')).length;
+
+        if (count === 0) {
+          await ctx.reply(
+            '🎥 *Mis Videos*\n\n' +
+            'No tienes videos guardados.\n\n' +
+            '💡 Envíame un video y lo guardaré automáticamente en Google Drive.',
+            { parse_mode: 'Markdown' }
+          );
+        } else {
+          await ctx.reply(
+            `🎥 *Mis Videos* (${count} videos)\n\n${videos}\n\n` +
+            '💡 Los videos están guardados en Google Drive.',
+            { parse_mode: 'Markdown' }
+          );
+        }
+      } catch (error) {
+        await ctx.reply('❌ Error al listar videos: ' + (error instanceof Error ? error.message : 'Error desconocido'));
       }
     });
 
@@ -376,6 +486,16 @@ export class TelegramBot {
     // Manejar mensajes de foto/imagen
     this.bot.on('message:photo', async (ctx) => {
       await this.handlePhotoMessage(ctx);
+    });
+
+    // Manejar documentos (PDF, DOCX, etc.)
+    this.bot.on('message:document', async (ctx) => {
+      await this.handleDocumentMessage(ctx);
+    });
+
+    // Manejar video
+    this.bot.on('message:video', async (ctx) => {
+      await this.handleVideoMessage(ctx);
     });
   }
 
@@ -708,6 +828,163 @@ export class TelegramBot {
     }
   }
 
+  /**
+   * Maneja documentos subidos por el usuario (PDF, DOCX, TXT, etc.)
+   * Los sube a Google Drive y guarda metadatos en la BD local
+   */
+  private async handleDocumentMessage(ctx: Context): Promise<void> {
+    const userId = ctx.from!.id;
+    const username = ctx.from!.username || ctx.from!.first_name || undefined;
+    const document = ctx.message?.document;
+
+    if (!document) {
+      return;
+    }
+
+    await ctx.api.sendChatAction(userId, 'upload_document');
+
+    try {
+      // Obtener información del archivo
+      const file = await ctx.api.getFile(document.file_id);
+      const fileName = document.file_name || `documento_${Date.now()}`;
+      const fileSize = document.file_size || 0;
+      const mimeType = document.mime_type || 'application/octet-stream';
+
+      // Descargar el archivo
+      const fileUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${file.file_path}`;
+      const response = await fetch(fileUrl);
+
+      if (!response.ok) {
+        throw new Error('Error al descargar el documento de Telegram');
+      }
+
+      const fileBuffer = Buffer.from(await response.arrayBuffer());
+
+      // Determinar el tipo MIME correcto para Google Drive
+      let driveMimeType = mimeType;
+      const fileNameLower = fileName.toLowerCase();
+
+      if (fileNameLower.endsWith('.pdf')) {
+        driveMimeType = 'application/pdf';
+      } else if (fileNameLower.endsWith('.docx') || fileNameLower.endsWith('.doc')) {
+        driveMimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
+        driveMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      } else if (fileNameLower.endsWith('.txt')) {
+        driveMimeType = 'text/plain';
+      } else if (fileNameLower.endsWith('.odt')) {
+        driveMimeType = 'application/vnd.oasis.opendocument.text';
+      }
+
+      // Subir a Google Drive
+      const { uploadFileBuffer } = await import('../google/drive.js');
+      const driveResult = await uploadFileBuffer(fileName, driveMimeType, fileBuffer);
+
+      // Guardar metadatos en la BD local (usando personal notes)
+      const metadata = {
+        fileName,
+        fileSize,
+        mimeType: driveMimeType,
+        uploadedAt: new Date().toISOString(),
+        source: 'telegram',
+        userId: userId.toString(),
+      };
+
+      // Guardar como nota personal con la información del documento
+      const { saveNote } = await import('../personal/notes.js');
+      await saveNote(
+        userId.toString(),
+        `📄 Documento: ${fileName}`,
+        `Documento subido desde Telegram\n\n${driveResult}\n\nMetadatos: ${JSON.stringify(metadata, null, 2)}`,
+        'documentos_telegram'
+      );
+
+      // Guardar en ChatDafo
+      await this.saveToChatDafo(userId, username, 'user', `📄 Documento subido: ${fileName}`);
+      await this.saveToChatDafo(userId, username, 'assistant', driveResult);
+
+      // Responder al usuario
+      const sizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+      await ctx.reply(
+        `✅ *Documento subido a Google Drive*\n\n` +
+        `📄 **${fileName}**\n` +
+        `📏 Tamaño: ${sizeMB} MB\n` +
+        `📁 Guardado en: Google Drive\n\n` +
+        `${driveResult}`,
+        { parse_mode: 'Markdown' }
+      );
+
+    } catch (error) {
+      console.error('Error procesando documento:', error);
+      await ctx.reply(
+        '❌ Error al procesar el documento: ' + (error instanceof Error ? error.message : 'Error desconocido')
+      );
+    }
+  }
+
+  /**
+   * Maneja videos subidos por el usuario
+   * Los sube a Google Drive y guarda metadatos
+   */
+  private async handleVideoMessage(ctx: Context): Promise<void> {
+    const userId = ctx.from!.id;
+    const video = ctx.message?.video;
+
+    if (!video) {
+      return;
+    }
+
+    await ctx.api.sendChatAction(userId, 'upload_video');
+
+    try {
+      // Obtener información del archivo
+      const file = await ctx.api.getFile(video.file_id);
+      const fileName = `video_${Date.now()}.mp4`;
+      const fileSize = video.file_size || 0;
+
+      // Descargar el archivo
+      const fileUrl = `https://api.telegram.org/file/bot${config.telegram.botToken}/${file.file_path}`;
+      const response = await fetch(fileUrl);
+
+      if (!response.ok) {
+        throw new Error('Error al descargar el video de Telegram');
+      }
+
+      const fileBuffer = Buffer.from(await response.arrayBuffer());
+
+      // Subir a Google Drive
+      const { uploadFileBuffer } = await import('../google/drive.js');
+      const driveResult = await uploadFileBuffer(fileName, 'video/mp4', fileBuffer);
+
+      // Guardar metadatos
+      const { saveNote } = await import('../personal/notes.js');
+      const sizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+      await saveNote(
+        userId.toString(),
+        `🎥 Video: ${fileName}`,
+        `Video subido desde Telegram (${sizeMB} MB)\n\n${driveResult}`,
+        'videos_telegram'
+      );
+
+      await ctx.reply(
+        `✅ *Video subido a Google Drive*\n\n` +
+        `🎥 ${fileName}\n` +
+        `📏 Tamaño: ${sizeMB} MB\n\n` +
+        `${driveResult}`,
+        { parse_mode: 'Markdown' }
+      );
+
+    } catch (error) {
+      console.error('Error procesando video:', error);
+      await ctx.reply(
+        '❌ Error al procesar el video: ' + (error instanceof Error ? error.message : 'Error desconocido')
+      );
+    }
+  }
+
+  /**
+   * Mejora el handler de fotos para también subirlas a Drive
+   */
   private async handlePhotoMessage(ctx: Context): Promise<void> {
     const userId = ctx.from!.id;
     const username = ctx.from!.username || ctx.from!.first_name || undefined;
@@ -739,6 +1016,17 @@ export class TelegramBot {
 
         const imageBuffer = Buffer.from(await response.arrayBuffer());
         await writeFile(tempPath, imageBuffer);
+
+        // SUBIR A GOOGLE DRIVE
+        try {
+          const { uploadFileBuffer } = await import('../google/drive.js');
+          const fileName = `foto_${Date.now()}.jpg`;
+          const driveResult = await uploadFileBuffer(fileName, 'image/jpeg', imageBuffer);
+
+          await ctx.reply(`📸 *Foto subida a Google Drive*\n\n${driveResult}`, { parse_mode: 'Markdown' });
+        } catch (driveError) {
+          console.warn('⚠️ No se pudo subir a Drive, continuando con análisis:', driveError);
+        }
 
         // Convertir a base64 para analizar
         const base64Image = imageBuffer.toString('base64');
