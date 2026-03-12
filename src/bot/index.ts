@@ -116,6 +116,7 @@ export class TelegramBot {
         '/audio_on - 🎤 Siempre responder con audio\n' +
         '/audio_off - 📝 Responder solo con texto\n' +
         '/audio_auto - 🤖 Audio automático en respuestas cortas\n' +
+        '/audio_test - 🔊 Probar el sistema de audio\n' +
         '/tarea <texto> - Crear tarea rápida\n' +
         '/rutina - Ver rutina de ejercicios\n' +
         '/resumen [hoy|semana] - Resumen rápido\n\n' +
@@ -222,6 +223,18 @@ export class TelegramBot {
         '💡 Usa /audio_on para siempre o /audio_off para desactivar.',
         { parse_mode: 'Markdown' }
       );
+    });
+
+    // Comando /audio_test - Probar el sistema de audio
+    this.bot.command('audio_test', async (ctx) => {
+      const userId = ctx.from!.id;
+      await ctx.reply('🎤 Probando el sistema de audio...');
+
+      try {
+        await this.sendAudioResponse(ctx, userId, 'Hola, esto es una prueba del sistema de audio de AgenteDafo. Si escuchas este mensaje, todo funciona correctamente.');
+      } catch (error) {
+        await ctx.reply('❌ Error en la prueba de audio: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+      }
     });
 
     // Comando /tarea - Crear tarea rápida
@@ -528,13 +541,15 @@ export class TelegramBot {
 
   // Envía respuesta de audio usando ElevenLabs
   private async sendAudioResponse(ctx: Context, userId: number, text: string): Promise<void> {
+    const responseAudioPath = join(tmpdir(), `response_${Date.now()}.mp3`);
+
     try {
       await ctx.api.sendChatAction(userId, 'record_voice');
 
-      const responseAudioPath = join(tmpdir(), `response_${Date.now()}.mp3`);
-
       // Limpiar texto para TTS
       const cleanText = this.cleanTextForTTS(text);
+
+      console.log('🎤 Generando audio con ElevenLabs...');
 
       // Generar audio con ElevenLabs
       await textToSpeech(cleanText, responseAudioPath, {
@@ -543,22 +558,30 @@ export class TelegramBot {
         model: config.elevenlabs.model,
       });
 
+      console.log('✅ Audio generado, enviando a Telegram...');
+
       // Crear un stream del archivo
       const audioStream = createReadStream(responseAudioPath);
 
       // Enviar el audio como nota de voz usando InputFile
       await ctx.replyWithVoice(new InputFile(audioStream, 'response.mp3'));
 
+      console.log('✅ Audio enviado correctamente');
+
     } catch (error) {
       // Si falla la generación de audio, loggear pero no fallar el flujo
       console.warn('⚠️  Error generando audio con ElevenLabs:', error);
+      await ctx.reply('🎤 *No puedo enviar audio en este momento.*\n\n' +
+        'Verifica que ELEVENLABS_API_KEY esté configurada correctamente.',
+        { parse_mode: 'Markdown' }
+      );
     } finally {
-      // La limpieza del archivo temporal se hará después
+      // Limpiar el archivo temporal (usar el MISMO nombre de archivo)
       try {
-        const responseAudioPath = join(tmpdir(), `response_${Date.now()}.mp3`);
         await unlink(responseAudioPath);
-      } catch {
-        // Ignorar errores al eliminar
+        console.log('🗑️ Archivo temporal eliminado');
+      } catch (err) {
+        console.warn('⚠️  Error eliminando archivo temporal:', err);
       }
     }
   }
