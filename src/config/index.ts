@@ -8,6 +8,9 @@ function parseAllowedUserIds(value: string): string[] {
   return value.split(',').map(id => id.trim()).filter(Boolean);
 }
 
+// Obtener OpenAI API key (reutilizar para LLM y TTS)
+const openaiApiKey = process.env.OPENAI_API_KEY || '';
+
 export const config: Config = {
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',
@@ -15,7 +18,7 @@ export const config: Config = {
   },
   llm: {
     openai: {
-      apiKey: process.env.OPENAI_API_KEY || '',
+      apiKey: openaiApiKey,
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     },
     groq: {
@@ -34,9 +37,18 @@ export const config: Config = {
     maxIterations: parseInt(process.env.MAX_AGENT_ITERATIONS || '5', 10),
     timeoutMs: parseInt(process.env.AGENT_TIMEOUT_MS || '120000', 10),
   },
+  // OpenAI TTS (Text-to-Speech) - Más económico que ElevenLabs
+  openai: {
+    tts: {
+      apiKey: openaiApiKey,
+      model: (process.env.OPENAI_TTS_MODEL as 'tts-1' | 'tts-1-hd') || 'tts-1',
+      voice: (process.env.OPENAI_TTS_VOICE as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer') || 'alloy',
+    },
+  },
+  // ElevenLabs TTS (opcional, como fallback)
   elevenlabs: {
     apiKey: process.env.ELEVENLABS_API_KEY || '',
-    voiceId: process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQG0F56aId', // Adam - voz masculina natural
+    voiceId: process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQG0F56aId',
     model: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
   },
 };

@@ -26,6 +26,15 @@ export interface Config {
     maxIterations: number;
     timeoutMs: number;
   };
+  // OpenAI TTS (Text-to-Speech)
+  openai: {
+    tts: {
+      apiKey: string;
+      model: 'tts-1' | 'tts-1-hd';
+      voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+    };
+  };
+  // ElevenLabs TTS (opcional, como fallback)
   elevenlabs: {
     apiKey: string;
     voiceId: string;

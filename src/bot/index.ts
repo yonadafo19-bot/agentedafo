@@ -6,7 +6,7 @@ import { Agent } from '../agent/index.js';
 import { initializeProviders } from '../llm/index.js';
 import { isFirebaseAvailable, getFirestore } from '../config/firebase.js';
 import { transcribeAudio } from '../audio/whisper.js';
-import { textToSpeech, verifyApiKey } from '../audio/elevenlabs.js';
+import { textToSpeech as openAITextToSpeech, verifyApiKey as verifyOpenAIKey } from '../audio/openai-tts.js';
 import { writeFile, unlink } from 'fs/promises';
 import { createReadStream } from 'fs';
 import { join } from 'path';
@@ -117,7 +117,7 @@ export class TelegramBot {
         '/audio_off - 📝 Responder solo con texto\n' +
         '/audio_auto - 🤖 Audio automático en respuestas cortas\n' +
         '/audio_test - 🔊 Probar el sistema de audio\n' +
-        '/check_eleven - 🔍 Verificar API key de ElevenLabs\n' +
+        '/check_eleven - 🔍 Verificar API key de OpenAI TTS\n' +
         '/mis_documentos - 📁 Ver documentos subidos\n' +
         '/mis_videos - 🎥 Ver videos subidos\n' +
         '/tarea <texto> - Crear tarea rápida\n' +
@@ -184,6 +184,7 @@ export class TelegramBot {
         `🆔 User ID: ${ctx.from!.id}\n` +
         `🎙️ Modo audio: ${audioStatus}\n` +
         `📏 Límite corto: ${prefs.shortResponseLimit} caracteres\n` +
+        `🎤 Voz TTS: ${config.openai.tts.voice}\n` +
         '✅ Estado: Activo\n' +
         '🧠 LLM: Groq (con fallback OpenRouter)\n' +
         '🔥 Firebase: ' + (isFirebaseAvailable() ? '✅ Conectado' : '❌ No configurado'),
@@ -242,16 +243,16 @@ export class TelegramBot {
 
     // Comando /check_eleven - Verificar API key de ElevenLabs
     this.bot.command('check_eleven', async (ctx) => {
-      await ctx.reply('🔍 Verificando API key de ElevenLabs...');
+      await ctx.reply('🔍 Verificando OpenAI TTS...');
 
-      const apiKey = config.elevenlabs.apiKey;
+      const apiKey = config.openai.tts.apiKey;
 
       if (!apiKey) {
         await ctx.reply(
-          '❌ *ELEVENLABS_API_KEY no configurada*\n\n' +
+          '❌ *OPENAI_API_KEY no configurada*\n\n' +
           'Agrega esta variable a tu archivo .env:\n' +
-          '`ELEVENLABS_API_KEY=tu_key_aqui`\n\n' +
-          'Obtén tu key en: https://elevenlabs.io/app/settings/api-keys',
+          '`OPENAI_API_KEY=tu_key_aqui`\n\n' +
+          'Obtén tu key en: https://platform.openai.com/api-keys',
           { parse_mode: 'Markdown' }
         );
         return;
@@ -261,15 +262,16 @@ export class TelegramBot {
       const maskedKey = apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4);
       await ctx.reply(`🔑 Key configurada: ${maskedKey}`);
 
-      // Verificar la key con ElevenLabs
-      const result = await verifyApiKey(apiKey);
+      // Verificar la key con OpenAI
+      const result = await verifyOpenAIKey(apiKey);
 
       if (result.valid) {
         await ctx.reply(
           '✅ *API Key válida*\n\n' +
-          `🎤 Voz configurada: ${config.elevenlabs.voiceId}\n` +
-          `📢 Modelo: ${config.elevenlabs.model}\n\n` +
-          'ElevenLabs está funcionando correctamente.',
+          `🎤 Voz configurada: ${config.openai.tts.voice}\n` +
+          `📢 Modelo: ${config.openai.tts.model}\n\n` +
+          'OpenAI TTS está funcionando correctamente.\n\n' +
+          '💰 Costo: $0.015 / 1,000 caracteres',
           { parse_mode: 'Markdown' }
         );
       } else {
@@ -279,8 +281,8 @@ export class TelegramBot {
           'Soluciones posibles:\n' +
           '• La key puede estar expirada\n' +
           '• La key puede ser incorrecta\n' +
-          '• Puede haber un problema con tu cuenta de ElevenLabs\n\n' +
-          'Verifica en: https://elevenlabs.io/app/settings/api-keys',
+          '• Puede haber un problema con tu cuenta de OpenAI\n\n' +
+          'Verifica en: https://platform.openai.com/api-keys',
           { parse_mode: 'Markdown' }
         );
       }
@@ -659,7 +661,7 @@ export class TelegramBot {
     }
   }
 
-  // Envía respuesta de audio usando ElevenLabs
+  // Envía respuesta de audio usando OpenAI TTS
   private async sendAudioResponse(ctx: Context, userId: number, text: string): Promise<void> {
     const responseAudioPath = join(tmpdir(), `response_${Date.now()}.mp3`);
 
@@ -669,17 +671,17 @@ export class TelegramBot {
       // Limpiar texto para TTS
       const cleanText = this.cleanTextForTTS(text);
 
-      console.log('🎤 Generando audio con ElevenLabs...');
+      console.log('🎤 Generando audio con OpenAI TTS...');
       console.log(`📝 Texto (${cleanText.length} chars): ${cleanText.substring(0, 100)}...`);
-      console.log(`🔑 API Key: ${config.elevenlabs.apiKey ? config.elevenlabs.apiKey.substring(0, 8) + '...' : 'NOT SET'}`);
-      console.log(`🎤 Voice ID: ${config.elevenlabs.voiceId}`);
-      console.log(`📢 Model: ${config.elevenlabs.model}`);
+      console.log(`🔑 API Key: ${config.openai.tts.apiKey ? config.openai.tts.apiKey.substring(0, 8) + '...' : 'NOT SET'}`);
+      console.log(`🎤 Voz: ${config.openai.tts.voice}`);
+      console.log(`📢 Modelo: ${config.openai.tts.model}`);
 
-      // Generar audio con ElevenLabs
-      await textToSpeech(cleanText, responseAudioPath, {
-        apiKey: config.elevenlabs.apiKey,
-        voiceId: config.elevenlabs.voiceId,
-        model: config.elevenlabs.model,
+      // Generar audio con OpenAI TTS
+      await openAITextToSpeech(cleanText, responseAudioPath, {
+        apiKey: config.openai.tts.apiKey,
+        voice: config.openai.tts.voice,
+        model: config.openai.tts.model,
       });
 
       console.log('✅ Audio generado, enviando a Telegram...');
@@ -712,17 +714,15 @@ export class TelegramBot {
 
       if (errorMsg.includes('API key') || errorMsg.includes('401')) {
         userMessage += '❌ **Error: API Key inválida o expirada**\n\n';
-        userMessage += 'La API key de ElevenLabs no funciona. Verifica `ELEVENLABS_API_KEY` en tu .env\n';
-        userMessage += 'Obtén una nueva en: https://elevenlabs.io/app/settings/api-keys';
-      } else if (errorMsg.includes('429')) {
-        userMessage += '❌ **Error: Límite de cuota excedido**\n\n';
-        userMessage += 'Has alcanzado el límite de tu cuenta de ElevenLabs.';
-      } else if (errorMsg.includes('404')) {
-        userMessage += '❌ **Error: Voz no encontrada**\n\n';
-        userMessage += 'La voz configurada no existe. Verifica `ELEVENLABS_VOICE_ID` en tu .env';
-      } else if (errorMsg.includes('ELEVENLABS_API_KEY no está configurada')) {
+        userMessage += 'La API key de OpenAI no funciona. Verifica `OPENAI_API_KEY` en tu .env\n';
+        userMessage += 'Obtén una nueva en: https://platform.openai.com/api-keys';
+      } else if (errorMsg.includes('429') || errorMsg.includes('insufficient_quota')) {
+        userMessage += '❌ **Error: Créditos insuficientes**\n\n';
+        userMessage += 'Has alcanzado el límite de tu cuenta de OpenAI.\n';
+        userMessage += 'Agrega crédito en: https://platform.openai.com/account/billing';
+      } else if (errorMsg.includes('OPENAI_API_KEY no está configurada')) {
         userMessage += '❌ **Error: API Key no configurada**\n\n';
-        userMessage += 'Agrega `ELEVENLABS_API_KEY` a tu archivo .env';
+        userMessage += 'Agrega `OPENAI_API_KEY` a tu archivo .env';
       } else {
         userMessage += `**Error:** ${errorMsg}\n\n`;
         userMessage += 'Usa /check_eleven para diagnosticar el problema.';
@@ -810,19 +810,19 @@ export class TelegramBot {
           this.memory.addMessage(userId, msg);
         }
 
-        // Generar respuesta de audio con ElevenLabs
+        // Generar respuesta de audio con OpenAI TTS
         await ctx.api.sendChatAction(userId, 'record_voice');
 
         const responseAudioPath = join(tmpdir(), `response_${Date.now()}.mp3`);
 
         try {
-          console.log('🎤 Generando audio de respuesta...');
+          console.log('🎤 Generando audio de respuesta con OpenAI...');
 
-          // Generar audio con ElevenLabs
-          await textToSpeech(result.response, responseAudioPath, {
-            apiKey: config.elevenlabs.apiKey,
-            voiceId: config.elevenlabs.voiceId,
-            model: config.elevenlabs.model,
+          // Generar audio con OpenAI TTS
+          await openAITextToSpeech(result.response, responseAudioPath, {
+            apiKey: config.openai.tts.apiKey,
+            voice: config.openai.tts.voice,
+            model: config.openai.tts.model,
           });
 
           console.log('✅ Audio generado, enviando...');
