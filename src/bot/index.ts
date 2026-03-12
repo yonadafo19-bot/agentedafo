@@ -670,6 +670,10 @@ export class TelegramBot {
       const cleanText = this.cleanTextForTTS(text);
 
       console.log('🎤 Generando audio con ElevenLabs...');
+      console.log(`📝 Texto (${cleanText.length} chars): ${cleanText.substring(0, 100)}...`);
+      console.log(`🔑 API Key: ${config.elevenlabs.apiKey ? config.elevenlabs.apiKey.substring(0, 8) + '...' : 'NOT SET'}`);
+      console.log(`🎤 Voice ID: ${config.elevenlabs.voiceId}`);
+      console.log(`📢 Model: ${config.elevenlabs.model}`);
 
       // Generar audio con ElevenLabs
       await textToSpeech(cleanText, responseAudioPath, {
@@ -680,6 +684,15 @@ export class TelegramBot {
 
       console.log('✅ Audio generado, enviando a Telegram...');
 
+      // Verificar que el archivo existe
+      const { stat } = await import('fs/promises');
+      try {
+        const stats = await stat(responseAudioPath);
+        console.log(`📁 Archivo de audio: ${stats.size} bytes`);
+      } catch {
+        throw new Error('El archivo de audio no se creó correctamente');
+      }
+
       // Crear un stream del archivo
       const audioStream = createReadStream(responseAudioPath);
 
@@ -689,12 +702,33 @@ export class TelegramBot {
       console.log('✅ Audio enviado correctamente');
 
     } catch (error) {
-      // Si falla la generación de audio, loggear pero no fallar el flujo
-      console.warn('⚠️  Error generando audio con ElevenLabs:', error);
-      await ctx.reply('🎤 *No puedo enviar audio en este momento.*\n\n' +
-        'Verifica que ELEVENLABS_API_KEY esté configurada correctamente.',
-        { parse_mode: 'Markdown' }
-      );
+      // Si falla la generación de audio, loggear y mostrar error detallado
+      console.error('❌ Error en sendAudioResponse:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+      console.error('❌ Detalle del error:', errorMsg);
+
+      // Mensaje específico según el tipo de error
+      let userMessage = '🎤 *No puedo enviar audio en este momento.*\n\n';
+
+      if (errorMsg.includes('API key') || errorMsg.includes('401')) {
+        userMessage += '❌ **Error: API Key inválida o expirada**\n\n';
+        userMessage += 'La API key de ElevenLabs no funciona. Verifica `ELEVENLABS_API_KEY` en tu .env\n';
+        userMessage += 'Obtén una nueva en: https://elevenlabs.io/app/settings/api-keys';
+      } else if (errorMsg.includes('429')) {
+        userMessage += '❌ **Error: Límite de cuota excedido**\n\n';
+        userMessage += 'Has alcanzado el límite de tu cuenta de ElevenLabs.';
+      } else if (errorMsg.includes('404')) {
+        userMessage += '❌ **Error: Voz no encontrada**\n\n';
+        userMessage += 'La voz configurada no existe. Verifica `ELEVENLABS_VOICE_ID` en tu .env';
+      } else if (errorMsg.includes('ELEVENLABS_API_KEY no está configurada')) {
+        userMessage += '❌ **Error: API Key no configurada**\n\n';
+        userMessage += 'Agrega `ELEVENLABS_API_KEY` a tu archivo .env';
+      } else {
+        userMessage += `**Error:** ${errorMsg}\n\n`;
+        userMessage += 'Usa /check_eleven para diagnosticar el problema.';
+      }
+
+      await ctx.reply(userMessage, { parse_mode: 'Markdown' });
     } finally {
       // Limpiar el archivo temporal (usar el MISMO nombre de archivo)
       try {
@@ -782,6 +816,8 @@ export class TelegramBot {
         const responseAudioPath = join(tmpdir(), `response_${Date.now()}.mp3`);
 
         try {
+          console.log('🎤 Generando audio de respuesta...');
+
           // Generar audio con ElevenLabs
           await textToSpeech(result.response, responseAudioPath, {
             apiKey: config.elevenlabs.apiKey,
@@ -789,16 +825,20 @@ export class TelegramBot {
             model: config.elevenlabs.model,
           });
 
+          console.log('✅ Audio generado, enviando...');
+
           // Crear un stream del archivo
           const audioStream = createReadStream(responseAudioPath);
 
           // Enviar el audio como nota de voz usando InputFile
           await ctx.replyWithVoice(new InputFile(audioStream, 'response.mp3'));
 
-        } catch (error) {
+          console.log('✅ Audio de respuesta enviado');
+
+        } catch (audioError) {
           // Si falla la generación de audio, enviar respuesta de texto
-          console.warn('⚠️  Error generando audio con ElevenLabs:', error);
-          await ctx.reply(result.response);
+          console.error('❌ Error generando audio de respuesta:', audioError);
+          await ctx.reply('🎤 Audio no disponible (' + (audioError instanceof Error ? audioError.message : 'Error') + ')\n\n' + result.response);
         } finally {
           // Limpiar el archivo de audio temporal
           try {
@@ -1025,7 +1065,14 @@ export class TelegramBot {
 
           await ctx.reply(`📸 *Foto subida a Google Drive*\n\n${driveResult}`, { parse_mode: 'Markdown' });
         } catch (driveError) {
-          console.warn('⚠️ No se pudo subir a Drive, continuando con análisis:', driveError);
+          const errorMsg = driveError instanceof Error ? driveError.message : 'Error desconocido';
+          console.error('❌ Error subiendo a Drive:', driveError);
+          await ctx.reply(
+            `⚠️ *No se pudo subir a Google Drive*\n\n` +
+            `Error: ${errorMsg}\n\n` +
+            `💡 Si es un problema de OAuth, necesitas actualizar el refresh token de Google.`,
+            { parse_mode: 'Markdown' }
+          );
         }
 
         // Convertir a base64 para analizar

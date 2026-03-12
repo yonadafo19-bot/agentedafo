@@ -17,7 +17,7 @@ export const SCOPES = {
     'https://www.googleapis.com/auth/calendar.events',
   ],
   drive: [
-    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive',  // Full access para subir archivos
   ],
   sheets: [
     'https://www.googleapis.com/auth/spreadsheets.readonly',
