@@ -39,3 +39,4 @@ Thumbs.db
 *sk_b*.txt
 api*.txt
 client_secret_*.json
+coverage/

@@ -16,5 +16,9 @@ export default defineConfig({
     alias: {
       '@': new URL('./src', import.meta.url).pathname,
     },
+    extensions: ['.ts', '.js'],
+  },
+  esbuild: {
+    target: 'node18',
   },
 });
