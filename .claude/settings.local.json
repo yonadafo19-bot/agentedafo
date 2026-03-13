@@ -20,7 +20,9 @@
       "Bash(git commit:*)",
       "Bash(git remote:*)",
       "Bash(rm railway.json && git add . && git commit -m \"Remove railway.json for auto-detection\" && git push)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cd \"C:\\\\Users\\\\EQUIPO\\\\Desktop\\\\Antigravity\\\\AgentePro\" && mkdir -p src/core/agent src/core/memory src/core/tools src/integrations/telegram src/integrations/audio src/integrations/image src/integrations/llm src/integrations/firebase src/integrations/google src/infrastructure/config src/domain/services/documents src/domain/services/personal src/domain/services/search)",
+      "Bash(cd \"C:\\\\Users\\\\EQUIPO\\\\Desktop\\\\Antigravity\\\\AgentePro\\\\src\" && mv integrations/audio/audio/* integrations/audio/ && mv integrations/firebase/firebase/* integrations/firebase/ && mv integrations/image/image/* integrations/image/ && rmdir integrations/audio/audio integrations/firebase/firebase integrations/image/image 2>/dev/null || true)"
     ]
   }
 }

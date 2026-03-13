@@ -1,13 +1,13 @@
-import type { Tool } from '../types/index.js';
-import * as firebaseMCP from '../firebase/firebase-mcp.js';
-import * as duckDuckGoSearch from '../search/duckduckgo-search.js';
-import * as wikipediaSearch from '../search/wikipedia-search.js';
-import * as braveSearch from '../search/brave-search.js';
-import * as googleWorkspace from '../google/index.js';
-import * as personalNotes from '../personal/notes.js';
-import { getImageGenerator } from '../image/openai.js';
-import * as docGenerator from '../documents/generator.js';
-import * as googleDrive from '../google/drive.js';
+import type { Tool } from '../../shared/types/index.js';
+import * as firebaseMCP from '../../integrations/firebase/firebase-mcp.js';
+import * as duckDuckGoSearch from '../../domain/services/search/search/duckduckgo-search.js';
+import * as wikipediaSearch from '../../domain/services/search/search/wikipedia-search.js';
+import * as braveSearch from '../../domain/services/search/search/brave-search.js';
+import * as googleWorkspace from '../../integrations/google/index.js';
+import * as personalNotes from '../../domain/services/personal/notes.js';
+import { getImageGenerator } from '../../integrations/image/openai.js';
+import * as docGenerator from '../../domain/services/documents/generator.js';
+import * as googleDrive from '../../integrations/google/drive.js';
 
 // ============================================================================
 // HERRAMIENTAS DEL SISTEMA

@@ -1,7 +1,7 @@
-import type { Message, ToolResult } from '../types/index.js';
+import type { Message, ToolResult } from '../../shared/types/index.js';
 import { tools, getTool } from '../tools/index.js';
-import { withFallback } from '../llm/index.js';
-import { config } from '../config/index.js';
+import { withFallback } from '../../integrations/llm/index.js';
+import { config } from '../../infrastructure/config/index.js';
 
 export class Agent {
   private systemPrompt: string;

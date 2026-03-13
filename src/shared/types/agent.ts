@@ -28,6 +28,23 @@ export interface ToolCall {
 }
 
 /**
+ * Herramienta del agente
+ */
+export interface Tool {
+  name: string;
+  description: string;
+  parameters: {
+    type: string;
+    properties: Record<string, {
+      type: string;
+      description: string;
+    }>;
+    required?: string[];
+  };
+  execute: (args: Record<string, unknown>) => Promise<string>;
+}
+
+/**
  * Resultado de ejecutar una herramienta
  */
 export interface ToolResult {

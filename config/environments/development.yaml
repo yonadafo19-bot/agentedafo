@@ -1,0 +1,31 @@
+app:
+  name: agentedafo
+  version: 2.0.0
+  env: development
+
+telegram:
+  botToken: ${TELEGRAM_BOT_TOKEN}
+  allowedUserIds: ${TELEGRAM_ALLOWED_USER_IDS}
+
+llm:
+  groq:
+    apiKey: ${GROQ_API_KEY}
+    model: llama-3.3-70b-versatile
+  openai:
+    apiKey: ${OPENAI_API_KEY}
+    model: gpt-4o-mini
+  fallbackOrder:
+    - groq
+    - openai
+
+database:
+  path: ./memory.db
+  poolSize: 10
+
+agent:
+  maxIterations: 5
+  timeoutMs: 120000
+
+monitoring:
+  logLevel: debug
+  metricsEnabled: true

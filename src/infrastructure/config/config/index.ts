@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import type { Config } from '../types/index.js';
+import type { Config } from '../../../../shared/types/index.js';
 
 dotenv.config();
 

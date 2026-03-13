@@ -3,7 +3,7 @@
  * Proporciona herramientas para interactuar con Firestore, Realtime Database y Storage
  */
 
-import { getFirestore, getDatabase, getStorage, isFirebaseAvailable } from '../config/firebase.js';
+import { getFirestore, getDatabase, getStorage, isFirebaseAvailable } from '../../config/firebase.js';
 
 // ============================================================================
 // FIRESTORE TOOLS

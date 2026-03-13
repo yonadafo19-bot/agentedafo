@@ -1,7 +1,7 @@
 import initSqlJs, { Database } from 'sql.js';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Message, ConversationContext } from '../types/index.js';
+import type { Message, ConversationContext } from '../../shared/types/index.js';
 
 export class Memory {
   private db: Database | null = null;
@@ -94,7 +94,7 @@ export class Memory {
     const messages = this.getMessages(userId);
 
     return {
-      userId: result.user_id,
+      userId: String(result.user_id),
       username: result.username || undefined,
       messages,
       startedAt: new Date(result.started_at),

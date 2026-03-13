@@ -1,8 +1,8 @@
 import { GroqProvider } from './groq.js';
 import { OpenRouterProvider } from './openrouter.js';
 import { OpenAIProvider } from './openai.js';
-import type { LLMProvider } from '../types/index.js';
-import { config } from '../config/index.js';
+import type { LLMProvider } from '../../shared/types/index.js';
+import { config } from '../../infrastructure/config/config/index.js';
 
 // Proveedor primario
 let primaryProvider: LLMProvider | null = null;

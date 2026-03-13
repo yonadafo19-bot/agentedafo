@@ -2,7 +2,7 @@
  * Whisper - Transcripción de audio usando Groq
  */
 
-import { config } from '../config/index.js';
+import { config } from '../../infrastructure/config/config/index.js';
 import { createReadStream } from 'fs';
 import FormData from 'form-data';
 import * as https from 'https';

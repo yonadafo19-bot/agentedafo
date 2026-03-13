@@ -1,5 +1,5 @@
-import { validateConfig } from './config/index.js';
-import { TelegramBot } from './bot/index.js';
+import { validateConfig } from './infrastructure/config/config/index.js';
+import { TelegramBot } from './integrations/telegram/index.js';
 
 async function main(): Promise<void> {
   try {

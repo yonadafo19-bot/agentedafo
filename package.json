@@ -9,7 +9,10 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "google-auth": "tsx src/scripts/google-auth.ts",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "google-auth": "tsx src/infrastructure/scripts/google-auth.ts",
     "restructure:create-folders": "bash scripts/restructure/create-folders.sh",
     "restructure:migrate": "bash scripts/restructure/migrate.sh"
   },

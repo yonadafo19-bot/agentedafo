@@ -1,24 +1,22 @@
-import OpenAI from 'openai';
-import type { Message, Tool, LLMProvider, AgentResponse } from '../types/index.js';
+import Groq from 'groq-sdk';
+import type { Message, Tool, LLMProvider, AgentResponse } from '../../shared/types/index.js';
 
-interface OpenAIConfig {
+interface GroqConfig {
   apiKey: string;
-  model?: string;
+  model: string;
 }
 
-export class OpenAIProvider implements LLMProvider {
-  name = 'OpenAI';
-  private client: OpenAI;
+export class GroqProvider implements LLMProvider {
+  name = 'Groq';
+  private client: Groq;
   private model: string;
 
-  constructor(config: OpenAIConfig) {
+  constructor(config: GroqConfig) {
     if (!config.apiKey) {
-      throw new Error('OpenAI API key es requerida');
+      throw new Error('Groq API key es requerida');
     }
-    this.client = new OpenAI({
-      apiKey: config.apiKey,
-    });
-    this.model = config.model || 'gpt-4o-mini';
+    this.client = new Groq({ apiKey: config.apiKey });
+    this.model = config.model;
   }
 
   isAvailable(): boolean {
@@ -27,8 +25,8 @@ export class OpenAIProvider implements LLMProvider {
 
   async complete(messages: Message[], tools: Tool[]): Promise<AgentResponse> {
     try {
-      const oaMessages = messages.map(msg => {
-        const oaMsg: {
+      const groqMessages = messages.map(msg => {
+        const groqMsg: {
           role: 'system' | 'user' | 'assistant' | 'tool';
           content: string;
           tool_calls?: Array<{
@@ -46,7 +44,7 @@ export class OpenAIProvider implements LLMProvider {
         };
 
         if (msg.toolCalls && msg.toolCalls.length > 0) {
-          oaMsg.tool_calls = msg.toolCalls.map(tc => ({
+          groqMsg.tool_calls = msg.toolCalls.map(tc => ({
             id: tc.id,
             type: 'function',
             function: {
@@ -57,13 +55,13 @@ export class OpenAIProvider implements LLMProvider {
         }
 
         if (msg.toolCallId) {
-          oaMsg.tool_call_id = msg.toolCallId;
+          groqMsg.tool_call_id = msg.toolCallId;
         }
 
-        return oaMsg;
+        return groqMsg;
       });
 
-      const oaTools = tools.map(tool => ({
+      const groqTools = tools.map(tool => ({
         type: 'function' as const,
         function: {
           name: tool.name,
@@ -74,10 +72,10 @@ export class OpenAIProvider implements LLMProvider {
 
       const response = await this.client.chat.completions.create({
         model: this.model,
-        messages: oaMessages as any,
-        tools: oaTools.length > 0 ? oaTools : undefined,
-        tool_choice: oaTools.length > 0 ? 'auto' : undefined,
-        temperature: 0.3, // Muy bajo para respuestas más deterministas
+        messages: groqMessages as any,
+        tools: groqTools.length > 0 ? groqTools : undefined,
+        tool_choice: groqTools.length > 0 ? 'auto' : undefined,
+        temperature: 0.3, // Muy bajo para respuestas más deterministas y precisas
         max_tokens: 4096,
       });
 
@@ -100,9 +98,9 @@ export class OpenAIProvider implements LLMProvider {
       };
     } catch (error) {
       if (error instanceof Error) {
-        throw new Error(`Error en OpenAI: ${error.message}`);
+        throw new Error(`Error en Groq: ${error.message}`);
       }
-      throw new Error('Error desconocido en OpenAI');
+      throw new Error('Error desconocido en Groq');
     }
   }
 }
