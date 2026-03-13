@@ -4,6 +4,7 @@ import * as duckDuckGoSearch from '../../domain/services/search/search/duckduckg
 import * as wikipediaSearch from '../../domain/services/search/search/wikipedia-search.js';
 import * as braveSearch from '../../domain/services/search/search/brave-search.js';
 import * as googleWorkspace from '../../integrations/google/index.js';
+import * as googleWorkspaceTools from '../../integrations/google/workspace.js';
 import * as personalNotes from '../../domain/services/personal/notes.js';
 import { getImageGenerator } from '../../integrations/image/openai.js';
 import * as docGenerator from '../../domain/services/documents/generator.js';
@@ -837,6 +838,108 @@ export const google_drive_search_and_read_doc: Tool = {
 };
 
 // ============================================================================
+// HERRAMIENTAS DE GOOGLE WORKSPACE - INTEGRACIÓN CRUZADA
+// ============================================================================
+
+export const google_find_emails_for_event: Tool = {
+  name: 'google_find_emails_for_event',
+  description: 'Busca emails relacionados con un evento de Calendar. Útil para encontrar correos sobre una reunión específica.',
+  parameters: {
+    type: 'object',
+    properties: {
+      eventTitle: { type: 'string', description: 'Título del evento para buscar en emails' },
+      eventDate: { type: 'string', description: 'Fecha del evento (opcional, formato: YYYY-MM-DD)' },
+      maxResults: { type: 'number', description: 'Máximo de resultados (default: 5)' },
+    },
+    required: ['eventTitle'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const eventTitle = args.eventTitle as string;
+      const eventDate = args.eventDate as string | undefined;
+      const maxResults = args.maxResults as number | undefined;
+      return await googleWorkspaceTools.findEmailsForEvent(eventTitle, eventDate, maxResults);
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const google_daily_summary: Tool = {
+  name: 'google_daily_summary',
+  description: 'Obtiene un resumen completo del día con eventos de Calendar, emails recientes de Gmail y archivos recientes de Drive',
+  parameters: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  async execute(): Promise<string> {
+    try {
+      return await googleWorkspaceTools.getDailySummary();
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const google_search_workspace: Tool = {
+  name: 'google_search_workspace',
+  description: 'Busca en TODO Google Workspace simultáneamente (Calendar, Gmail y Drive)',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Término de búsqueda' },
+    },
+    required: ['query'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const query = args.query as string;
+      return await googleWorkspaceTools.searchAllWorkspace(query);
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const google_get_context_info: Tool = {
+  name: 'google_get_context_info',
+  description: 'Encuentra información contextual sobre un contacto o tema en emails, eventos y archivos de Google',
+  parameters: {
+    type: 'object',
+    properties: {
+      topic: { type: 'string', description: 'Tema, nombre de contacto o asunto a buscar' },
+    },
+    required: ['topic'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const topic = args.topic as string;
+      return await googleWorkspaceTools.getContextInfo(topic);
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const google_frequent_contacts: Tool = {
+  name: 'google_frequent_contacts',
+  description: 'Lista los contactos más frecuentes basándose en emails recientes',
+  parameters: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  async execute(): Promise<string> {
+    try {
+      return await googleWorkspaceTools.getFrequentContacts();
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+// ============================================================================
 // HERRAMIENTAS DE BÚSQUEDA WEB
 // ============================================================================
 
@@ -1510,6 +1613,13 @@ export const tools: Tool[] = [
   google_drive_upload,
   google_drive_read_doc,
   google_drive_search_and_read_doc,
+
+  // Google Workspace - Integración Cruzada
+  google_find_emails_for_event,
+  google_daily_summary,
+  google_search_workspace,
+  google_get_context_info,
+  google_frequent_contacts,
 
   // Personal Notes & Tasks
   personal_save_note,
