@@ -4,7 +4,7 @@
  * Usa Firebase cuando está disponible, sino usa SQLite local
  */
 
-import { getFirestore, isFirebaseAvailable } from '../../../integrations/firebase/firebase.js';
+import { getFirestore, isFirebaseAvailable } from '../../../integrations/firebase/firebase-mcp.js';
 import initSqlJs, { Database } from 'sql.js';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';

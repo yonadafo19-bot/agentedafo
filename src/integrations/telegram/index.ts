@@ -1,10 +1,10 @@
 import { Bot } from 'grammy';
 import type { Context } from 'grammy';
-import { config } from '../config/index.js';
-import { Memory } from '../memory/index.js';
-import { Agent } from '../agent/index.js';
+import { config } from '../../infrastructure/config/config/index.js';
+import { Memory } from '../../core/memory/index.js';
+import { Agent } from '../../core/agent/index.js';
 import { initializeProviders } from '../llm/index.js';
-import { isFirebaseAvailable, getFirestore } from '../config/firebase.js';
+import { isFirebaseAvailable, getFirestore } from '../../infrastructure/config/config/firebase.js';
 import { transcribeAudio } from '../audio/whisper.js';
 import { textToSpeech as openAITextToSpeech, verifyApiKey as verifyOpenAIKey } from '../audio/openai-tts.js';
 import { writeFile, unlink } from 'fs/promises';
@@ -12,10 +12,15 @@ import { createReadStream } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { InputFile } from 'grammy';
-import * as personalNotes from '../personal/notes.js';
+import * as personalNotes from '../../domain/services/personal/notes.js';
 import { getTodayEvents, getEvents } from '../google/calendar.js';
 import { getRecentEmails } from '../google/gmail.js';
-import type { AudioPreferences } from '../types/index.js';
+
+// Tipo local para preferencias de audio
+export interface AudioPreferences {
+  voiceEnabled: boolean;
+  voiceGender: 'male' | 'female';
+}
 
 export class TelegramBot {
   private bot: Bot;
