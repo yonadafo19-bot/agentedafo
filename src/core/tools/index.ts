@@ -1433,20 +1433,6 @@ export const memory_get_facts: Tool = {
     }
   },
 };
-    },
-    required: ['userId'],
-  },
-  async execute(args: Record<string, unknown>): Promise<string> {
-    try {
-      const { Memory } = await import('../memory/index.js');
-      // Esta herramienta necesita acceso a la instancia de Memory
-      // Por ahora retornamos un mensaje de que se implementará
-      return 'La herramienta memory_get_facts necesita acceso a la instancia de Memory. Implementación pendiente de inyección de dependencias.';
-    } catch (error) {
-      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
-    }
-  },
-};
 
 export const memory_add_fact: Tool = {
   name: 'memory_add_fact',
