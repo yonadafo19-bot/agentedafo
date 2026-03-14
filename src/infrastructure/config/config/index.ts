@@ -51,6 +51,18 @@ export const config: Config = {
     voiceId: process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQG0F56aId',
     model: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
   },
+  // Smart Memory configuration
+  smartMemory: {
+    enabled: process.env.SMART_MEMORY_ENABLED === 'true' || false,
+    enableFactExtraction: process.env.SMART_MEMORY_FACT_EXTRACTION !== 'false',
+    enableSemanticSearch: process.env.SMART_MEMORY_SEMANTIC_SEARCH === 'true' || false,
+    enableAutoSummarization: process.env.SMART_MEMORY_AUTO_SUMMARIZATION !== 'false',
+    factExtractionInterval: parseInt(process.env.SMART_MEMORY_EXTRACTION_INTERVAL || '20', 10),
+    summarizationThreshold: parseInt(process.env.SMART_MEMORY_SUMMARIZATION_THRESHOLD || '50', 10),
+    maxFactsReturned: parseInt(process.env.SMART_MEMORY_MAX_FACTS || '10', 10),
+    factRetentionDays: parseInt(process.env.SMART_MEMORY_RETENTION_DAYS || '90', 10),
+    minConfidenceThreshold: parseFloat(process.env.SMART_MEMORY_MIN_CONFIDENCE || '0.6'),
+  },
 };
 
 export function validateConfig(): void {

@@ -1276,6 +1276,151 @@ export const personal_log_session: Tool = {
 };
 
 // ============================================================================
+// SMART MEMORY TOOLS
+// ============================================================================
+
+export const memory_search: Tool = {
+  name: 'memory_search',
+  description: 'Busca información en la memoria del usuario usando palabras clave o consulta semántica. Útil para recordar información previa, preferencias, hechos importantes o conversaciones anteriores.',
+  parameters: {
+    type: 'object',
+    properties: {
+      userId: { type: 'string', description: 'ID del usuario' },
+      query: { type: 'string', description: 'Consulta de búsqueda (palabras clave o pregunta en lenguaje natural)' },
+      limit: { type: 'number', description: 'Número máximo de resultados (default: 10)' },
+    },
+    required: ['userId', 'query'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const { Memory } = await import('../memory/index.js');
+      const memory = Memory; // Esto será inyectado desde fuera
+      // Esta herramienta necesita acceso a la instancia de Memory
+      // Por ahora retornamos un mensaje de que se implementará
+      return 'La herramienta memory_search necesita acceso a la instancia de Memory. Implementación pendiente de inyección de dependencias.';
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const memory_get_facts: Tool = {
+  name: 'memory_get_facts',
+  description: 'Obtiene todos los hechos almacenados sobre el usuario. Incluye preferencias, relaciones, metas, eventos, rutinas, etc. Útil para ver qué información se ha guardado.',
+  parameters: {
+    type: 'object',
+    properties: {
+      userId: { type: 'string', description: 'ID del usuario' },
+      type: {
+        type: 'string',
+        description: 'Tipo de hechos a filtrar (preference, relationship, goal, event, fact, routine, task, location, contact, project). Si no se especifica, devuelve todos.',
+      },
+      category: {
+        type: 'string',
+        description: 'Categoría a filtrar (personal, work, family, health, finance, education, hobbies, social, travel, other). Si no se especifica, devuelve todas.',
+      },
+      limit: { type: 'number', description: 'Número máximo de hechos (default: 50)' },
+    },
+    required: ['userId'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const { Memory } = await import('../memory/index.js');
+      // Esta herramienta necesita acceso a la instancia de Memory
+      // Por ahora retornamos un mensaje de que se implementará
+      return 'La herramienta memory_get_facts necesita acceso a la instancia de Memory. Implementación pendiente de inyección de dependencias.';
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const memory_add_fact: Tool = {
+  name: 'memory_add_fact',
+  description: 'Agrega manualmente un hecho a la memoria del usuario. Útil para guardar información importante que el usuario comparta explícitamente.',
+  parameters: {
+    type: 'object',
+    properties: {
+      userId: { type: 'string', description: 'ID del usuario' },
+      type: {
+        type: 'string',
+        enum: ['preference', 'relationship', 'goal', 'event', 'fact', 'routine', 'task', 'location', 'contact', 'project'],
+        description: 'Tipo del hecho',
+      },
+      category: {
+        type: 'string',
+        enum: ['personal', 'work', 'family', 'health', 'finance', 'education', 'hobbies', 'social', 'travel', 'other'],
+        description: 'Categoría del hecho',
+      },
+      content: { type: 'string', description: 'Descripción completa del hecho' },
+      key: { type: 'string', description: 'Palabra clave o nombre del hecho (ej: "nombre", "color favorito", "cumpleaños")' },
+      value: { type: 'string', description: 'Valor del hecho (ej: "Juan", "azul", "15 de enero")' },
+      priority: {
+        type: 'string',
+        enum: ['high', 'medium', 'low'],
+        description: 'Prioridad o importancia del hecho (default: medium)',
+      },
+    },
+    required: ['userId', 'type', 'category', 'content', 'key', 'value'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const { Memory } = await import('../memory/index.js');
+      // Esta herramienta necesita acceso a la instancia de Memory
+      // Por ahora retornamos un mensaje de que se implementará
+      return 'La herramienta memory_add_fact necesita acceso a la instancia de Memory. Implementación pendiente de inyección de dependencias.';
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const memory_get_summaries: Tool = {
+  name: 'memory_get_summaries',
+  description: 'Obtiene los resúmenes de conversaciones previas con el usuario. Útil para recordar temas discutidos anteriormente.',
+  parameters: {
+    type: 'object',
+    properties: {
+      userId: { type: 'string', description: 'ID del usuario' },
+      limit: { type: 'number', description: 'Número máximo de resúmenes (default: 10)' },
+    },
+    required: ['userId'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const { Memory } = await import('../memory/index.js');
+      // Esta herramienta necesita acceso a la instancia de Memory
+      // Por ahora retornamos un mensaje de que se implementará
+      return 'La herramienta memory_get_summaries necesita acceso a la instancia de Memory. Implementación pendiente de inyección de dependencias.';
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+export const mis_datos: Tool = {
+  name: 'mis_datos',
+  description: 'Muestra al usuario un resumen de toda la información que se ha guardado sobre él: preferencias, relaciones, metas, hechos importantes, etc.',
+  parameters: {
+    type: 'object',
+    properties: {
+      userId: { type: 'string', description: 'ID del usuario' },
+    },
+    required: ['userId'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const { Memory } = await import('../memory/index.js');
+      // Esta herramienta necesita acceso a la instancia de Memory
+      // Por ahora retornamos un mensaje explicativo
+      return '📊 **Mis Datos**\n\nEsta herramienta mostrará toda la información que he guardado sobre ti:\n\n• 📝 Preferencias personales\n• 👥 Relaciones importantes\n• 🎯 Metas y objetivos\n• 📅 Eventos recordados\n• 🔄 Rutinas y hábitos\n• 📍 Ubicaciones importantes\n• 💼 Proyectos\n\nPara que funcione completamente, se necesita configurar la instancia de Memory.';
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
+
+// ============================================================================
 // HERRAMIENTAS DE IMAGEN
 // ============================================================================
 
@@ -1631,6 +1776,13 @@ export const tools: Tool[] = [
   personal_save_routine,
   personal_get_routine,
   personal_log_session,
+
+  // Smart Memory
+  memory_search,
+  memory_get_facts,
+  memory_add_fact,
+  memory_get_summaries,
+  mis_datos,
 
   // Image Generation & Vision
   image_generate,

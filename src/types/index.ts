@@ -40,6 +40,18 @@ export interface Config {
     voiceId: string;
     model: string;
   };
+  // Smart Memory configuration
+  smartMemory?: {
+    enabled: boolean;
+    enableFactExtraction: boolean;
+    enableSemanticSearch: boolean;
+    enableAutoSummarization: boolean;
+    factExtractionInterval: number;
+    summarizationThreshold: number;
+    maxFactsReturned: number;
+    factRetentionDays: number;
+    minConfidenceThreshold: number;
+  };
 }
 
 export interface Message {

@@ -1,15 +1,21 @@
 import type { Message, ToolResult } from '../../shared/types/index.js';
+import type { SmartMemoryConfig, Fact } from '../../shared/types/memory.js';
 import { tools, getTool } from '../tools/index.js';
 import { withFallback } from '../../integrations/llm/index.js';
 import { config } from '../../infrastructure/config/index.js';
+import type { Memory } from '../memory/index.js';
 
 export class Agent {
   private systemPrompt: string;
   private maxIterations: number;
+  private memory?: Memory;
+  private smartMemoryConfig?: SmartMemoryConfig;
 
-  constructor(systemPrompt?: string) {
+  constructor(systemPrompt?: string, memory?: Memory, smartMemoryConfig?: SmartMemoryConfig) {
     this.systemPrompt = systemPrompt || this.getDefaultSystemPrompt();
     this.maxIterations = config.agent.maxIterations;
+    this.memory = memory;
+    this.smartMemoryConfig = smartMemoryConfig;
   }
 
   private getDefaultSystemPrompt(): string {
@@ -470,6 +476,7 @@ ESTO ES CRÍTICO: Mantener el contexto de lo que acabamos de hablar.`;
   async run(userMessage: string, conversationHistory: Message[], userId?: string): Promise<{
     response: string;
     messages: Message[];
+    extractedFacts?: Fact[];
   }> {
     // Obtener fecha y hora actual (Zona horaria: Chile/Concepción)
     const now = new Date();
@@ -488,13 +495,24 @@ ESTO ES CRÍTICO: Mantener el contexto de lo que acabamos de hablar.`;
       timeZone: 'America/Santiago'
     });
 
-    // Preparar mensajes para el LLM con contexto temporal
+    // Obtener contexto enriquecido de Smart Memory si está disponible
+    let enhancedContext = '';
+    if (this.memory && this.smartMemoryConfig && this.smartMemoryConfig.enabled && userId) {
+      try {
+        enhancedContext = await this.memory.getEnhancedContext(userId.toString(), userMessage);
+      } catch (error) {
+        console.error('Error getting enhanced context:', error);
+      }
+    }
+
+    // Preparar mensajes para el LLM con contexto temporal y memoria enriquecida
     let messages: Message[] = [
       {
         role: 'system',
         content: this.systemPrompt +
           (userId ? `\n\n## USUARIO ACTUAL\nTu userId es: ${userId}\nUsa este userId en las herramientas personales (personal_*) para gestionar la información del usuario.` : '') +
-          `\n\n## 📅 FECHA Y HORA ACTUAL\nHoy es ${fechaFormateada} (${diaSemana})\nHora actual: ${hora}\n\nIMPORTANTE: Usa esta información para responder. Si el usuario pregunta "qué tengo hoy", se refiere a HOY (${diaSemana}).`
+          `\n\n## 📅 FECHA Y HORA ACTUAL\nHoy es ${fechaFormateada} (${diaSemana})\nHora actual: ${hora}\n\nIMPORTANTE: Usa esta información para responder. Si el usuario pregunta "qué tengo hoy", se refiere a HOY (${diaSemana}).` +
+          (enhancedContext ? `\n\n${enhancedContext}` : '')
       },
       ...conversationHistory,
       { role: 'user', content: userMessage },
@@ -575,9 +593,30 @@ ESTO ES CRÍTICO: Mantener el contexto de lo que acabamos de hablar.`;
     // Devolver solo los mensajes nuevos (excluyendo el system prompt que no guardamos)
     const newMessages = messages.slice(1);
 
+    // Extraer hechos si Smart Memory está habilitado
+    let extractedFacts: Fact[] = [];
+    if (this.memory && this.smartMemoryConfig && this.smartMemoryConfig.enabled && userId) {
+      const smartMemory = this.memory.getSmartMemory(userId.toString());
+      if (smartMemory) {
+        const totalMessages = conversationHistory.length + newMessages.length;
+        if (smartMemory.shouldExtractFacts(totalMessages)) {
+          try {
+            const extractionResult = await smartMemory.extractFacts(newMessages);
+            for (const fact of extractionResult.facts) {
+              await this.memory.saveFact(fact);
+            }
+            extractedFacts = extractionResult.facts;
+          } catch (error) {
+            console.error('Error extracting facts:', error);
+          }
+        }
+      }
+    }
+
     return {
       response: finalResponse,
       messages: newMessages,
+      extractedFacts,
     };
   }
 

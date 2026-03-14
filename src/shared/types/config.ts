@@ -141,6 +141,21 @@ export interface ElevenLabsConfig {
 }
 
 /**
+ * Configuración de Smart Memory
+ */
+export interface SmartMemoryConfig {
+  enabled: boolean;
+  enableFactExtraction: boolean;
+  enableSemanticSearch: boolean;
+  enableAutoSummarization: boolean;
+  factExtractionInterval: number;
+  summarizationThreshold: number;
+  maxFactsReturned: number;
+  factRetentionDays: number;
+  minConfidenceThreshold: number;
+}
+
+/**
  * Configuración completa de la aplicación
  */
 export interface AppConfig {
@@ -155,4 +170,5 @@ export interface AppConfig {
   firebase?: FirebaseConfig;
   google?: GoogleConfig;
   elevenlabs?: ElevenLabsConfig;
+  smartMemory?: SmartMemoryConfig;
 }
