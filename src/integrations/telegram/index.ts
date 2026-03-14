@@ -12,14 +12,23 @@ import { createReadStream } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { InputFile } from 'grammy';
-import * as personalNotes from '../../domain/services/personal/notes.js';
+import {
+  createTask,
+  getExerciseRoutine,
+  listPendingTasks,
+  searchNotes,
+  saveNote,
+} from '../../domain/services/personal/notes.js';
 import { getTodayEvents, getEvents } from '../google/calendar.js';
 import { getRecentEmails } from '../google/gmail.js';
+import { errorHandler } from '../../infrastructure/monitoring/ErrorHandler.js';
+import { formatErrorForTelegram, detectCommonError } from '../../infrastructure/monitoring/UserFriendlyErrorMessages.js';
 
 // Tipo local para preferencias de audio
 export interface AudioPreferences {
-  voiceEnabled: boolean;
-  voiceGender: 'male' | 'female';
+  alwaysAudio?: boolean;
+  audioForShort?: boolean;
+  shortResponseLimit?: number;
 }
 
 export class TelegramBot {
@@ -74,7 +83,7 @@ export class TelegramBot {
     if (prefs.alwaysAudio) return true;
 
     // Si audio para cortas y la respuesta es corta
-    if (prefs.audioForShort && responseText.length <= prefs.shortResponseLimit) {
+    if (prefs.audioForShort && responseText.length <= (prefs.shortResponseLimit || 300)) {
       return true;
     }
 
@@ -92,6 +101,106 @@ export class TelegramBot {
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // Enlaces [texto](url) -> texto
       .replace(/\n{3,}/g, '\n\n')  // Máximo 2 saltos de línea seguidos
       .trim();
+  }
+
+  /**
+   * Maneja un error de manera amigable para el usuario
+   */
+  private async handleError(
+    ctx: Context,
+    error: unknown,
+    context?: { action?: string; userId?: number }
+  ): Promise<void> {
+    const handled = errorHandler.handleForUser(error, {
+      action: context?.action,
+      userId: context?.userId?.toString(),
+    });
+
+    // Loggear si es necesario
+    if (handled.shouldLog) {
+      console.error(`[${handled.logLevel.toUpperCase()}]`, handled.logMessage, handled.context);
+    }
+
+    // Enviar mensaje amigable al usuario
+    await ctx.reply(handled.userMessage, { parse_mode: 'Markdown' });
+  }
+
+  /**
+   * Envía un mensaje de error con formato amigable
+   */
+  private async sendErrorMessage(
+    ctx: Context,
+    error: string | Error,
+    context?: { action?: string }
+  ): Promise<void> {
+    const errorMessage = formatErrorForTelegram(error);
+    await ctx.reply(errorMessage, { parse_mode: 'Markdown' });
+  }
+
+  /**
+   * Envía un mensaje indicando que algo está en progreso
+   */
+  private async sendLoadingMessage(ctx: Context, text: string = '⏳ Procesando...'): Promise<void> {
+    await ctx.reply(text);
+  }
+
+  /**
+   * Envía un mensaje de éxito
+   */
+  private async sendSuccessMessage(
+    ctx: Context,
+    text: string,
+    options?: { editMessage?: number }
+  ): Promise<void> {
+    if (options?.editMessage) {
+      await ctx.api.editMessageText(
+        ctx.chat!.id,
+        options.editMessage,
+        text,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      await ctx.reply(text, { parse_mode: 'Markdown' });
+    }
+  }
+
+  /**
+   * Ejecuta una acción con manejo de errores automático
+   */
+  private async executeWithErrorHandling(
+    ctx: Context,
+    action: () => Promise<void>,
+    context?: { action?: string; loadingMessage?: string }
+  ): Promise<void> {
+    let loadingMsg: number | null = null;
+
+    try {
+      // Mostrar mensaje de carga si se proporciona
+      if (context?.loadingMessage) {
+        const msg = await ctx.reply(context.loadingMessage);
+        loadingMsg = msg.message_id;
+      }
+
+      // Ejecutar la acción
+      await action();
+
+      // Si hay mensaje de carga, editarlo para mostrar éxito
+      if (loadingMsg && context?.action) {
+        await this.sendSuccessMessage(ctx, `✅ ${context.action} completado.`, { editMessage: loadingMsg });
+      }
+    } catch (error) {
+      // Si hay mensaje de carga, editarlo para mostrar error
+      if (loadingMsg) {
+        try {
+          await ctx.api.deleteMessage(ctx.chat!.id, loadingMsg);
+        } catch {
+          // Ignorar si el mensaje ya fue eliminado
+        }
+      }
+
+      // Manejar error de manera amigable
+      await this.handleError(ctx, error, context);
+    }
   }
 
   async initialize(): Promise<void> {
@@ -127,7 +236,8 @@ export class TelegramBot {
         '/mis_videos - 🎥 Ver videos subidos\n' +
         '/tarea <texto> - Crear tarea rápida\n' +
         '/rutina - Ver rutina de ejercicios\n' +
-        '/resumen [hoy|semana] - Resumen rápido\n\n' +
+        '/resumen [hoy|semana] - Resumen rápido\n' +
+        '/report - 📋 Reportar un error\n\n' +
         '✨ *¿Cómo puedo ayudarte?*\n' +
         '• 📝 Envíame mensajes de texto\n' +
         '• 🎤 Envíame notas de voz (¡te respondo con audio!)\n' +
@@ -237,59 +347,47 @@ export class TelegramBot {
     // Comando /audio_test - Probar el sistema de audio
     this.bot.command('audio_test', async (ctx) => {
       const userId = ctx.from!.id;
-      await ctx.reply('🎤 Probando el sistema de audio...');
+      await this.sendLoadingMessage(ctx, '🎤 Probando el sistema de audio...');
 
       try {
         await this.sendAudioResponse(ctx, userId, 'Hola, esto es una prueba del sistema de audio de AgenteDafo. Si escuchas este mensaje, todo funciona correctamente.');
+        await this.sendSuccessMessage(ctx, '✅ Prueba de audio completada con éxito.');
       } catch (error) {
-        await ctx.reply('❌ Error en la prueba de audio: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+        await this.handleError(ctx, error, { action: 'Prueba de audio' });
       }
     });
 
-    // Comando /check_eleven - Verificar API key de ElevenLabs
+    // Comando /check_eleven - Verificar API key de OpenAI TTS
     this.bot.command('check_eleven', async (ctx) => {
-      await ctx.reply('🔍 Verificando OpenAI TTS...');
+      await this.sendLoadingMessage(ctx, '🔍 Verificando OpenAI TTS...');
 
-      const apiKey = config.openai.tts.apiKey;
+      try {
+        const apiKey = config.openai.tts.apiKey;
 
-      if (!apiKey) {
-        await ctx.reply(
-          '❌ *OPENAI_API_KEY no configurada*\n\n' +
-          'Agrega esta variable a tu archivo .env:\n' +
-          '`OPENAI_API_KEY=tu_key_aqui`\n\n' +
-          'Obtén tu key en: https://platform.openai.com/api-keys',
-          { parse_mode: 'Markdown' }
-        );
-        return;
-      }
+        if (!apiKey) {
+          throw new Error('OPENAI_API_KEY no configurada. Agrega esta variable a tu archivo .env: OPENAI_API_KEY=tu_key_aqui. Obten tu key en: https://platform.openai.com/api-keys');
+        }
 
-      // Mostrar primeros caracteres de la key (ocultando el resto)
-      const maskedKey = apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4);
-      await ctx.reply(`🔑 Key configurada: ${maskedKey}`);
+        // Mostrar primeros caracteres de la key (ocultando el resto)
+        const maskedKey = apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4);
+        await this.sendSuccessMessage(ctx, `🔑 Key configurada: ${maskedKey}`);
 
-      // Verificar la key con OpenAI
-      const result = await verifyOpenAIKey(apiKey);
+        // Verificar la key con OpenAI
+        const result = await verifyOpenAIKey(apiKey);
 
-      if (result.valid) {
-        await ctx.reply(
-          '✅ *API Key válida*\n\n' +
-          `🎤 Voz configurada: ${config.openai.tts.voice}\n` +
-          `📢 Modelo: ${config.openai.tts.model}\n\n` +
-          'OpenAI TTS está funcionando correctamente.\n\n' +
-          '💰 Costo: $0.015 / 1,000 caracteres',
-          { parse_mode: 'Markdown' }
-        );
-      } else {
-        await ctx.reply(
-          '❌ *Error con la API Key*\n\n' +
-          `🔍 Detalle: ${result.error}\n\n` +
-          'Soluciones posibles:\n' +
-          '• La key puede estar expirada\n' +
-          '• La key puede ser incorrecta\n' +
-          '• Puede haber un problema con tu cuenta de OpenAI\n\n' +
-          'Verifica en: https://platform.openai.com/api-keys',
-          { parse_mode: 'Markdown' }
-        );
+        if (result.valid) {
+          await this.sendSuccessMessage(ctx,
+            '✅ *API Key válida*\n\n' +
+            `🎤 Voz configurada: ${config.openai.tts.voice}\n` +
+            `📢 Modelo: ${config.openai.tts.model}\n\n` +
+            'OpenAI TTS está funcionando correctamente.\n\n' +
+            '💰 Costo: $0.015 / 1,000 caracteres'
+          );
+        } else {
+          throw new Error(`OPENAI_API_KEY inválida: ${result.error}. La key puede estar expirada o incorrecta. Verifica en: https://platform.openai.com/api-keys`);
+        }
+      } catch (error) {
+        await this.handleError(ctx, error, { action: 'Verificación API Key' });
       }
     });
 
@@ -298,7 +396,6 @@ export class TelegramBot {
       const userId = ctx.from!.id;
 
       try {
-        const { searchNotes } = await import('../personal/notes.js');
         const documentos = await searchNotes(userId.toString(), 'documentos_telegram');
 
         // Contar cuántos hay
@@ -329,7 +426,6 @@ export class TelegramBot {
       const userId = ctx.from!.id;
 
       try {
-        const { searchNotes } = await import('../personal/notes.js');
         const videos = await searchNotes(userId.toString(), 'videos_telegram');
 
         const lineas = videos.split('\n');
@@ -366,8 +462,8 @@ export class TelegramBot {
       }
 
       try {
-        // Crear tarea directamente usando personalNotes.createTask
-        const resultado = await personalNotes.createTask(
+        // Crear tarea directamente usando createTask
+        const resultado = await createTask(
           userId.toString(),
           texto,
           '',
@@ -392,8 +488,8 @@ export class TelegramBot {
       const username = ctx.from!.username || ctx.from!.first_name;
 
       try {
-        // Obtener rutina con personalNotes.getExerciseRoutine
-        const rutina = await personalNotes.getExerciseRoutine(userId.toString());
+        // Obtener rutina con getExerciseRoutine
+        const rutina = await getExerciseRoutine(userId.toString());
 
         // Guardar en ChatDafo para auditoría
         await this.saveToChatDafo(userId, username, 'user', '/rutina');
@@ -430,7 +526,7 @@ export class TelegramBot {
 
         // Consultas en paralelo: tareas, eventos y emails
         const [tareas, eventos, emails] = await Promise.allSettled([
-          personalNotes.listPendingTasks(userId.toString()),
+          listPendingTasks(userId.toString()),
           periodo === 'hoy'
             ? getTodayEvents()
             : getEvents('primary', 7),
@@ -480,6 +576,27 @@ export class TelegramBot {
       }
     });
 
+    // Comando /report - Reportar un error
+    this.bot.command('report', async (ctx) => {
+      ctx.reply(
+        '📋 *Reportar Error*\n\n' +
+        'Si has experimentado un error con el bot, por favor repórtalo.\n\n' +
+        '📝 *Información necesaria:*\n' +
+        '• ¿Qué comando o acción estabas intentando?\n' +
+        '• ¿Qué mensaje de error recibiste?\n' +
+        '• ¿Cuándo ocurrió el error?\n\n' +
+        '💡 *Opciones de reporte:*\n' +
+        '1. Envía la información aquí mismo\n' +
+        '2. Abre un issue en GitHub: https://github.com/yonadafo19-bot/agentedafo/issues\n' +
+        '3. Contacta al administrador\n\n' +
+        '🔧 *Soluciones rápidas:*\n' +
+        '• /clear - Limpiar el historial si el bot está "atascado"\n' +
+        '• /info - Verificar el estado del bot\n' +
+        '• /start - Reiniciar el bot si algo no funciona',
+        { parse_mode: 'Markdown' }
+      );
+    });
+
     // Manejar mensajes de texto
     this.bot.on('message:text', async (ctx) => {
       await this.handleUserMessage(ctx);
@@ -522,24 +639,19 @@ export class TelegramBot {
 
   /**
    * Manejo consistente de errores para comandos rápidos
+   * @deprecated Usar handleError en su lugar
    */
   private handleCommandError(error: unknown, action: string): string {
     console.error(`Error al ${action}:`, error);
 
     const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
 
-    // Mensajes amigables según el tipo de error
-    if (errorMsg.includes('Firebase') || errorMsg.includes('Firestore')) {
-      return `❌ Error de base de datos al ${action}. Verifica que Firebase esté configurado.`;
-    }
-    if (errorMsg.includes('Google') || errorMsg.includes('OAuth')) {
-      return `⚠️ No se pudo acceder a Google al ${action}. Verifica la autenticación.`;
-    }
-    if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('network')) {
-      return `⚠️ Error de conexión al ${action}. Verifica tu internet.`;
-    }
+    // Usar el nuevo sistema de errores amigables
+    const friendlyError = formatErrorForTelegram(
+      error instanceof Error ? error : new Error(errorMsg)
+    );
 
-    return `❌ Error al ${action}: ${errorMsg}`;
+    return friendlyError;
   }
 
   private isUserAllowed(ctx: Context): boolean {
@@ -1015,7 +1127,7 @@ export class TelegramBot {
       };
 
       // Guardar como nota personal con la información del documento
-      const { saveNote } = await import('../personal/notes.js');
+      await saveNote(
       await saveNote(
         userId.toString(),
         `📄 Documento: ${originalFileName}`,

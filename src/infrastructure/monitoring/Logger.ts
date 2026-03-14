@@ -85,6 +85,23 @@ export class Logger {
     }
   }
 
+  /**
+   * Método genérico de logging según nivel
+   */
+  log(level: 'info' | 'warn' | 'error', message: string, context?: LogContext): void {
+    switch (level) {
+      case 'info':
+        this.info(message, context);
+        break;
+      case 'warn':
+        this.warn(message, context);
+        break;
+      case 'error':
+        this.error(message, undefined, context);
+        break;
+    }
+  }
+
   child(context: LogContext): Logger {
     const child = new Logger(this.name, this.minLevel);
     // child.logger = this.logger.child(context);

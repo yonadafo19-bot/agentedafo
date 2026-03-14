@@ -5,6 +5,9 @@
 
 import { getFirestore, getDatabase, getStorage, isFirebaseAvailable } from '../../infrastructure/config/config/firebase.js';
 
+// Re-exportar funciones de Firebase
+export { getFirestore, isFirebaseAvailable };
+
 // ============================================================================
 // FIRESTORE TOOLS
 // ============================================================================

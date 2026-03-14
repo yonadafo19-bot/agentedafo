@@ -11,3 +11,6 @@ export * from './telegram.js';
 export type { ToolCall, ToolResult } from './agent.js';
 export type { Message, ConversationContext } from './agent.js';
 export type { AppConfig } from './config.js';
+
+// Re-exportar LLMProvider del sistema original
+export type { LLMProvider, AgentResponse } from '../../types/index.js';
