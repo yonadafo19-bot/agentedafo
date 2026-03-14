@@ -1619,6 +1619,107 @@ export const mis_datos: Tool = {
 };
 
 // ============================================================================
+// HERRAMIENTAS DE AYUDA
+// ============================================================================
+
+export const comandos: Tool = {
+  name: 'comandos',
+  description: 'Muestra todos los comandos y herramientas disponibles del bot de forma organizada y profesional.',
+  parameters: {
+    type: 'object',
+    properties: {
+      categoria: {
+        type: 'string',
+        description: 'Categoría específica para filtrar (memoria, google, tareas, imagenes, documentos, todos)',
+        enum: ['memoria', 'google', 'tareas', 'imagenes', 'documentos', 'todos'],
+      },
+    },
+    required: [],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    const categoria = (args.categoria as string) || 'todos';
+
+    let response = `🤖 **AGENTEDAFO - Comandos Disponibles**\n\n`;
+
+    if (categoria === 'todos' || categoria === 'memoria') {
+      response += `📚 **MEMORIA INTELIGENTE**
+  \`/mis_datos\` - Ver toda la información que he aprendido sobre ti
+  \`memory_search\` - Buscar información en mi memoria
+  \`memory_get_facts\` - Ver hechos guardados con filtros
+  \`memory_add_fact\` - Guardar información importante
+
+`;
+    }
+
+    if (categoria === 'todos' || categoria === 'google') {
+      response += `🔗 **GOOGLE WORKSPACE**
+  \`/resumen_dia\` - Resumen completo del día (eventos, emails, archivos)
+  \`google_search\` - Buscar en TODOS tus servicios de Google a la vez
+  \`/eventos_hoy\` - Ver eventos de hoy en Calendar
+  \`/emails\` - Ver emails recientes
+  \`/drive_archivos\` - Ver archivos recientes en Drive
+  \`/crear_evento\` - Crear evento en Calendar
+  \`/drive_buscar\` - Buscar archivo específico en Drive
+  \`/drive_leer_doc\` - Leer contenido de un Google Doc
+
+`;
+    }
+
+    if (categoria === 'todos' || categoria === 'tareas') {
+      response += `📝 **NOTAS Y TAREAS PERSONALES**
+  \`/guardar_nota\` - Guardar información importante
+  \`/buscar_notas\` - Buscar en tus notas
+  \`/crear_tarea\` - Crear tarea pendiente
+  \`/mis_tareas\` - Ver tareas pendientes
+  \`/completar_tarea\` - Marcar tarea como completada
+  \`/guardar_rutina\` - Guardar rutina de ejercicios
+  \`/ver_rutina\` - Ver rutina guardada
+
+`;
+    }
+
+    if (categoria === 'todos' || categoria === 'imagenes') {
+      response += `🎨 **GENERACIÓN DE IMÁGENES**
+  \`/imagen [prompt]\` - Generar imagen con IA
+  \`/imagen_barato [prompt]\` - Generar imagen económica
+  \`/describir_imagen\` - Describir el contenido de una imagen
+  \`/ocr\` - Extraer texto de una imagen
+
+`;
+    }
+
+    if (categoria === 'todos' || categoria === 'documentos') {
+      response += `📄 **CREACIÓN DE DOCUMENTOS**
+  \`/doc [contenido]\` - Crear Word y subir a Drive
+  \`/excel [datos]\` - Crear Excel y subir a Drive
+  \`/pdf [contenido]\` - Crear PDF y subir a Drive
+  \`/txt [texto]\` - Crear archivo de texto y subir a Drive
+
+`;
+    }
+
+    if (categoria === 'todos') {
+      response += `🔍 **BÚSQUEDA WEB**
+  \`/buscar [query]\` - Buscar en internet (Brave Search)
+  \`/wikipedia [tema]\` - Buscar en Wikipedia
+
+⏰ **SISTEMA**
+  \`/hora\` - Obtener fecha y hora actual
+
+💡 **Consejos de uso:**
+• Solo pregunta naturalmente: "¿qué tengo hoy?" → usaré las herramientas necesarias
+• Para recordar datos: "¿qué sabes sobre mí?" → veré tu información guardada
+• Para buscar en Google: "¿tengo algo con [tema/persona]?" → buscaré en todos tus servicios
+• Sube imágenes y pídeme describirlas, extraer texto, o generar similares
+
+Más información: Usa \`/comandos [categoria]\` para ver solo una categoría.`;
+    }
+
+    return response;
+  },
+};
+
+// ============================================================================
 // HERRAMIENTAS DE IMAGEN
 // ============================================================================
 
@@ -1981,6 +2082,9 @@ export const tools: Tool[] = [
   memory_add_fact,
   memory_get_summaries,
   mis_datos,
+
+  // Help & Commands
+  comandos,
 
   // Image Generation & Vision
   image_generate,
