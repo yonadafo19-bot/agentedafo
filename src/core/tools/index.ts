@@ -1281,25 +1281,71 @@ export const personal_log_session: Tool = {
 
 export const memory_search: Tool = {
   name: 'memory_search',
-  description: 'Busca información en la memoria del usuario usando palabras clave o consulta semántica. Útil para recordar información previa, preferencias, hechos importantes o conversaciones anteriores.',
+  description: 'Busca información en la memoria del usuario usando palabras clave. Útil para recordar información previa, preferencias, hechos importantes o conversaciones anteriores.',
   parameters: {
     type: 'object',
     properties: {
       userId: { type: 'string', description: 'ID del usuario' },
-      query: { type: 'string', description: 'Consulta de búsqueda (palabras clave o pregunta en lenguaje natural)' },
+      query: { type: 'string', description: 'Consulta de búsqueda (palabras clave)' },
       limit: { type: 'number', description: 'Número máximo de resultados (default: 10)' },
     },
     required: ['userId', 'query'],
   },
   async execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const { Memory } = await import('../memory/index.js');
-      const memory = Memory; // Esto será inyectado desde fuera
-      // Esta herramienta necesita acceso a la instancia de Memory
-      // Por ahora retornamos un mensaje de que se implementará
-      return 'La herramienta memory_search necesita acceso a la instancia de Memory. Implementación pendiente de inyección de dependencias.';
+      const { getMemoryInstance } = await import('../memory/index.js');
+      const memory = getMemoryInstance();
+
+      if (!memory) {
+        return '❌ Memory no está inicializado. Por favor, intenta más tarde.';
+      }
+
+      const userId = args.userId as string;
+      const query = args.query as string;
+      const limit = (args.limit as number) || 10;
+
+      // Obtener todos los hechos del usuario
+      const facts = await memory.getFacts(userId, { limit: 100 });
+
+      // Buscar coincidencias por palabras clave
+      const queryLower = query.toLowerCase();
+      const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+
+      const results: Array<{ fact: string; score: number }> = [];
+
+      for (const fact of facts) {
+        let score = 0;
+        const factText = `${fact.key} ${fact.value} ${fact.content}`.toLowerCase();
+
+        if (factText.includes(queryLower)) score += 1.0;
+
+        for (const word of queryWords) {
+          if (fact.key.includes(word)) score += 0.5;
+          if (fact.value.includes(word)) score += 0.3;
+          if (fact.content.includes(word)) score += 0.2;
+        }
+
+        if (fact.priority === 'high') score *= 1.5;
+
+        if (score > 0.1) {
+          results.push({ fact: `${fact.key}: ${fact.value}`, score });
+        }
+      }
+
+      results.sort((a, b) => b.score - a.score);
+
+      if (results.length === 0) {
+        return `🔍 No encontré información sobre "${query}" en tu memoria.`;
+      }
+
+      let response = `🔍 **Resultados para "${query}":**\n\n`;
+      for (const result of results.slice(0, limit)) {
+        response += `• ${result.fact}\n`;
+      }
+
+      return response;
     } catch (error) {
-      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+      return `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
     }
   },
 };
@@ -1320,6 +1366,73 @@ export const memory_get_facts: Tool = {
         description: 'Categoría a filtrar (personal, work, family, health, finance, education, hobbies, social, travel, other). Si no se especifica, devuelve todas.',
       },
       limit: { type: 'number', description: 'Número máximo de hechos (default: 50)' },
+    },
+    required: ['userId'],
+  },
+  async execute(args: Record<string, unknown>): Promise<string> {
+    try {
+      const { getMemoryInstance } = await import('../memory/index.js');
+      const memory = getMemoryInstance();
+
+      if (!memory) {
+        return '❌ Memory no está inicializado. Por favor, intenta más tarde.';
+      }
+
+      const userId = args.userId as string;
+      const type = args.type as string | undefined;
+      const category = args.category as string | undefined;
+      const limit = (args.limit as number) || 50;
+
+      const facts = await memory.getFacts(userId, {
+        type: type as any,
+        category: category as any,
+        limit,
+        activeOnly: true,
+      });
+
+      if (facts.length === 0) {
+        return '📝 No hay información guardada todavía. Conversemos más y iré aprendiendo sobre ti.';
+      }
+
+      // Agrupar por tipo
+      const grouped: Record<string, typeof facts> = {};
+      for (const fact of facts) {
+        if (!grouped[fact.type]) grouped[fact.type] = [];
+        grouped[fact.type].push(fact);
+      }
+
+      let response = `📝 **Información guardada (${facts.length} hechos):**\n\n`;
+
+      const typeLabels: Record<string, string> = {
+        preference: '👤 Preferencias',
+        relationship: '👥 Relaciones',
+        goal: '🎯 Metas',
+        event: '📅 Eventos',
+        fact: '📝 Hechos',
+        routine: '🔄 Rutinas',
+        task: '✅ Tareas',
+        location: '📍 Ubicaciones',
+        contact: '📞 Contactos',
+        project: '💼 Proyectos',
+      };
+
+      for (const [type, typeFacts] of Object.entries(grouped)) {
+        response += `**${typeLabels[type] || type}**\n`;
+        for (const fact of typeFacts.slice(0, 5)) {
+          response += `  • **${fact.key}**: ${fact.value}\n`;
+        }
+        if (typeFacts.length > 5) {
+          response += `  • ... y ${typeFacts.length - 5} más\n`;
+        }
+        response += '\n';
+      }
+
+      return response;
+    } catch (error) {
+      return `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+    }
+  },
+};
     },
     required: ['userId'],
   },
@@ -1365,12 +1478,39 @@ export const memory_add_fact: Tool = {
   },
   async execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const { Memory } = await import('../memory/index.js');
-      // Esta herramienta necesita acceso a la instancia de Memory
-      // Por ahora retornamos un mensaje de que se implementará
-      return 'La herramienta memory_add_fact necesita acceso a la instancia de Memory. Implementación pendiente de inyección de dependencias.';
+      const { getMemoryInstance } = await import('../memory/index.js');
+      const memory = getMemoryInstance();
+
+      if (!memory) {
+        return '❌ Memory no está inicializado. Por favor, intenta más tarde.';
+      }
+
+      const userId = args.userId as string;
+      const type = args.type as any;
+      const category = args.category as any;
+      const content = args.content as string;
+      const key = args.key as string;
+      const value = args.value as string;
+      const priority = (args.priority as any) || 'medium';
+
+      const fact = {
+        userId,
+        type,
+        category,
+        content,
+        key: key.toLowerCase(),
+        value,
+        confidence: 1.0,
+        confirmations: 0,
+        extractedAt: new Date(),
+        priority,
+      };
+
+      await memory.saveFact(fact);
+
+      return `✅ **Guardado:** ${key}: ${value}`;
     } catch (error) {
-      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+      return `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
     }
   },
 };
@@ -1388,12 +1528,36 @@ export const memory_get_summaries: Tool = {
   },
   async execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const { Memory } = await import('../memory/index.js');
-      // Esta herramienta necesita acceso a la instancia de Memory
-      // Por ahora retornamos un mensaje de que se implementará
-      return 'La herramienta memory_get_summaries necesita acceso a la instancia de Memory. Implementación pendiente de inyección de dependencias.';
+      const { getMemoryInstance } = await import('../memory/index.js');
+      const memory = getMemoryInstance();
+
+      if (!memory) {
+        return '❌ Memory no está inicializado. Por favor, intenta más tarde.';
+      }
+
+      const userId = args.userId as string;
+      const limit = (args.limit as number) || 10;
+
+      const summaries = await memory.getSummaries(userId, limit);
+
+      if (summaries.length === 0) {
+        return '📋 No hay resúmenes de conversaciones anteriores.';
+      }
+
+      let response = `📋 **Resúmenes de conversaciones (${summaries.length}):**\n\n`;
+
+      for (const summary of summaries) {
+        response += `**${summary.title}** (${summary.messageCount} mensajes)\n`;
+        response += `${summary.summary}\n`;
+        if (summary.keyPoints.length > 0) {
+          response += `Puntos clave: ${summary.keyPoints.slice(0, 3).join(', ')}\n`;
+        }
+        response += '\n';
+      }
+
+      return response;
     } catch (error) {
-      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+      return `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
     }
   },
 };
@@ -1410,12 +1574,60 @@ export const mis_datos: Tool = {
   },
   async execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const { Memory } = await import('../memory/index.js');
-      // Esta herramienta necesita acceso a la instancia de Memory
-      // Por ahora retornamos un mensaje explicativo
-      return '📊 **Mis Datos**\n\nEsta herramienta mostrará toda la información que he guardado sobre ti:\n\n• 📝 Preferencias personales\n• 👥 Relaciones importantes\n• 🎯 Metas y objetivos\n• 📅 Eventos recordados\n• 🔄 Rutinas y hábitos\n• 📍 Ubicaciones importantes\n• 💼 Proyectos\n\nPara que funcione completamente, se necesita configurar la instancia de Memory.';
+      const { getMemoryInstance } = await import('../memory/index.js');
+      const memory = getMemoryInstance();
+
+      if (!memory) {
+        return '❌ Memory no está inicializado. Por favor, intenta más tarde.';
+      }
+
+      const userId = args.userId as string;
+
+      // Obtener hechos del usuario
+      const facts = await memory.getFacts(userId, { limit: 100, activeOnly: true });
+
+      if (facts.length === 0) {
+        return '📊 **Mis Datos - Aprendizaje de AI**\n\nAún no he guardado información sobre ti. Conversemos más y empezaré a aprender tus preferencias, metas y datos importantes.';
+      }
+
+      // Agrupar por tipo
+      const grouped: Record<string, typeof facts> = {};
+      for (const fact of facts) {
+        if (!grouped[fact.type]) grouped[fact.type] = [];
+        grouped[fact.type].push(fact);
+      }
+
+      let response = '📊 **Mis Datos - Lo que he aprendido sobre ti:**\n\n';
+
+      const typeLabels: Record<string, string> = {
+        preference: '👤 Preferencias Personales',
+        relationship: '👥 Relaciones',
+        goal: '🎯 Metas y Objetivos',
+        event: '📅 Eventos',
+        fact: '📝 Hechos Importantes',
+        routine: '🔄 Rutinas',
+        task: '✅ Tareas',
+        location: '📍 Lugares',
+        contact: '📞 Contactos',
+        project: '💼 Proyectos',
+      };
+
+      for (const [type, typeFacts] of Object.entries(grouped)) {
+        response += `**${typeLabels[type] || type}** (${typeFacts.length})\n`;
+        for (const fact of typeFacts.slice(0, 5)) {
+          response += `  • **${fact.key}**: ${fact.value}\n`;
+        }
+        if (typeFacts.length > 5) {
+          response += `  • ... y ${typeFacts.length - 5} más\n`;
+        }
+        response += '\n';
+      }
+
+      response += `💡 _Total: ${facts.length} datos guardados_`;
+
+      return response;
     } catch (error) {
-      return `Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
+      return `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}`;
     }
   },
 };

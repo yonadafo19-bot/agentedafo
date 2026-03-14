@@ -692,3 +692,6 @@ export class Memory {
     }
   }
 }
+
+// Re-exportar el registro de Memory
+export { setMemoryInstance, getMemoryInstance, hasMemoryInstance } from './registry.js';

@@ -212,6 +212,10 @@ export class TelegramBot {
     // Inicializar base de datos (async para sql.js)
     await this.memory.initialize();
 
+    // Registrar la instancia de Memory para que las tools puedan acceder
+    const { setMemoryInstance } = await import('../../core/memory/index.js');
+    setMemoryInstance(this.memory);
+
     // Inicializar Smart Memory si está configurado
     if (this.smartMemoryConfig && this.smartMemoryConfig.enabled) {
       this.memory.initializeWithSmartMemory(this.smartMemoryConfig);
