@@ -119,28 +119,6 @@ export interface MemorySearchResult {
 }
 
 /**
- * Configuración del sistema de Smart Memory
- */
-export interface SmartMemoryConfig {
-  /** Habilitar extracción de hechos */
-  enableFactExtraction: boolean;
-  /** Habilitar búsqueda semántica */
-  enableSemanticSearch: boolean;
-  /** Habilitar auto-resumen de conversaciones */
-  enableAutoSummarization: boolean;
-  /** Cantidad de mensajes antes de extraer hechos */
-  factExtractionInterval: number;
-  /** Cantidad de mensajes antes de resumir */
-  summarizationThreshold: number;
-  /** Máximo de hechos a devolver en búsqueda */
-  maxFactsReturned: number;
-  /** Días para considerar hechos como relevantes */
-  factRetentionDays: number;
-  /** Umbral de confianza para guardar hechos */
-  minConfidenceThreshold: number;
-}
-
-/**
  * Resultado de extracción de hechos
  */
 export interface FactExtractionResult {

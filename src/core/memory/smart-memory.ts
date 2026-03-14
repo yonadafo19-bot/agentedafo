@@ -9,9 +9,9 @@ import type {
   ConversationSummary,
   FactExtractionResult,
   MemorySearchResult,
-  SmartMemoryConfig,
   EnhancedContext,
 } from '../../shared/types/memory.js';
+import type { SmartMemoryConfig } from '../../shared/types/config.js';
 import { withFallback } from '../../integrations/llm/index.js';
 import type { AgentResponse } from '../../types/index.js';
 

@@ -1,5 +1,6 @@
 import type { Message, ToolResult } from '../../shared/types/index.js';
-import type { SmartMemoryConfig, Fact } from '../../shared/types/memory.js';
+import type { SmartMemoryConfig } from '../../shared/types/config.js';
+import type { Fact } from '../../shared/types/memory.js';
 import { tools, getTool } from '../tools/index.js';
 import { withFallback } from '../../integrations/llm/index.js';
 import { config } from '../../infrastructure/config/index.js';

@@ -3,6 +3,7 @@ import type { Context } from 'grammy';
 import { config } from '../../infrastructure/config/config/index.js';
 import { Memory } from '../../core/memory/index.js';
 import { Agent } from '../../core/agent/index.js';
+import type { SmartMemoryConfig } from '../../shared/types/config.js';
 import { initializeProviders } from '../llm/index.js';
 import { isFirebaseAvailable, getFirestore } from '../../infrastructure/config/config/firebase.js';
 import { transcribeAudio } from '../audio/whisper.js';
@@ -35,6 +36,7 @@ export class TelegramBot {
   private bot: Bot;
   private memory: Memory;
   private agent: Agent;
+  private smartMemoryConfig?: SmartMemoryConfig;
   // Preferencias de audio por usuario (almacenadas en memoria)
   private userAudioPreferences: Map<number, AudioPreferences>;
 
@@ -48,8 +50,11 @@ export class TelegramBot {
     // Inicializar memoria
     this.memory = new Memory(config.database.path);
 
-    // Inicializar agente
-    this.agent = new Agent();
+    // Obtener configuración de Smart Memory si está disponible
+    this.smartMemoryConfig = config.smartMemory;
+
+    // Inicializar agente con memoria y configuración de Smart Memory
+    this.agent = new Agent(undefined, this.memory, this.smartMemoryConfig);
 
     // Inicializar preferencias de usuario
     this.userAudioPreferences = new Map();
@@ -206,6 +211,15 @@ export class TelegramBot {
   async initialize(): Promise<void> {
     // Inicializar base de datos (async para sql.js)
     await this.memory.initialize();
+
+    // Inicializar Smart Memory si está configurado
+    if (this.smartMemoryConfig && this.smartMemoryConfig.enabled) {
+      this.memory.initializeWithSmartMemory(this.smartMemoryConfig);
+      this.memory.enableSmartMemory(true);
+      console.log('🧠 Smart Memory: ✅ Habilitado');
+    } else {
+      console.log('🧠 Smart Memory: ⚠️  Deshabilitado');
+    }
   }
 
   private setupHandlers(): void {
@@ -1127,7 +1141,6 @@ export class TelegramBot {
       };
 
       // Guardar como nota personal con la información del documento
-      await saveNote(
       await saveNote(
         userId.toString(),
         `📄 Documento: ${originalFileName}`,

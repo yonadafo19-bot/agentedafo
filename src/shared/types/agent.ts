@@ -28,6 +28,25 @@ export interface ToolCall {
 }
 
 /**
+ * Parámetro de una herramienta
+ */
+export interface ToolParameter {
+  type: string;
+  description: string;
+  enum?: string[];
+  items?: ToolParameter | ToolParameterProperties;
+}
+
+/**
+ * Propiedades de un parámetro de tipo objeto
+ */
+export interface ToolParameterProperties {
+  type: string;
+  properties?: Record<string, ToolParameter>;
+  required?: string[];
+}
+
+/**
  * Herramienta del agente
  */
 export interface Tool {
@@ -35,10 +54,7 @@ export interface Tool {
   description: string;
   parameters: {
     type: string;
-    properties: Record<string, {
-      type: string;
-      description: string;
-    }>;
+    properties: Record<string, ToolParameter | ToolParameterProperties>;
     required?: string[];
   };
   execute: (args: Record<string, unknown>) => Promise<string>;

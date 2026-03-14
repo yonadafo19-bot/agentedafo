@@ -67,15 +67,25 @@ export interface ToolCall {
   arguments: Record<string, unknown>;
 }
 
+export interface ToolParameter {
+  type: string;
+  description?: string;
+  enum?: string[];
+  items?: ToolParameter | ToolParameterProperties;
+}
+
+export interface ToolParameterProperties {
+  type: string;
+  properties?: Record<string, ToolParameter>;
+  required?: string[];
+}
+
 export interface Tool {
   name: string;
   description: string;
   parameters: {
     type: string;
-    properties: Record<string, {
-      type: string;
-      description: string;
-    }>;
+    properties: Record<string, ToolParameter | ToolParameterProperties>;
     required?: string[];
   };
   execute: (args: Record<string, unknown>) => Promise<string>;
